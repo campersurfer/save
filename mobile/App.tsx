@@ -2,6 +2,7 @@ import React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createStackNavigator } from '@react-navigation/stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,12 +15,89 @@ import FeedScreen from './src/screens/FeedScreen';
 import MindScreen from './src/screens/MindScreen';
 import AddScreen from './src/screens/AddScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
+import ArticleDetailScreen from './src/screens/ArticleDetailScreen';
 
 // Import providers
 import { AudioProvider } from './src/providers/AudioProvider';
 import { ContentProvider } from './src/providers/ContentProvider';
 
 const Tab = createBottomTabNavigator();
+const Stack = createStackNavigator();
+
+function MainTabNavigator() {
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName: keyof typeof Ionicons.glyphMap;
+
+          if (route.name === 'Feed') {
+            iconName = focused ? 'reader' : 'reader-outline';
+          } else if (route.name === 'Mind') {
+            iconName = focused ? 'grid' : 'grid-outline';
+          } else if (route.name === 'Add') {
+            iconName = focused ? 'add-circle' : 'add-circle-outline';
+          } else if (route.name === 'Settings') {
+            iconName = focused ? 'settings' : 'settings-outline';
+          } else {
+            iconName = 'help-outline';
+          }
+
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
+        tabBarActiveTintColor: Colors.primary.blue,
+        tabBarInactiveTintColor: Colors.text.tertiary,
+        tabBarStyle: {
+          ...Components.tabBar,
+        },
+        headerStyle: {
+          backgroundColor: Colors.dark.background,
+          borderBottomColor: Colors.dark.surface,
+          borderBottomWidth: 1,
+        },
+        headerTintColor: Colors.text.primary,
+        headerTitleStyle: {
+          fontFamily: Typography.fontFamily.heading,
+          fontWeight: Typography.fontWeight.semibold,
+          fontSize: Typography.fontSize.h4,
+        },
+      })}
+    >
+      <Tab.Screen 
+        name="Feed" 
+        component={FeedScreen}
+        options={{
+          title: 'Feed',
+          headerTitle: 'Save Feed',
+        }}
+      />
+      <Tab.Screen 
+        name="Mind" 
+        component={MindScreen}
+        options={{
+          title: 'Mind',
+          headerTitle: 'Visual Mind',
+        }}
+      />
+      <Tab.Screen 
+        name="Add" 
+        component={AddScreen}
+        options={{
+          title: 'Add',
+          headerTitle: 'Save Content',
+        }}
+      />
+      <Tab.Screen 
+        name="Settings" 
+        component={SettingsScreen}
+        options={{
+          title: 'Settings',
+          headerTitle: 'Settings',
+        }}
+      />
+    </Tab.Navigator>
+  );
+}
 
 export default function App() {
   return (
@@ -27,76 +105,21 @@ export default function App() {
       <ContentProvider>
         <AudioProvider>
           <NavigationContainer>
-            <Tab.Navigator
-              screenOptions={({ route }) => ({
-                tabBarIcon: ({ focused, color, size }) => {
-                  let iconName: keyof typeof Ionicons.glyphMap;
-
-                  if (route.name === 'Feed') {
-                    iconName = focused ? 'reader' : 'reader-outline';
-                  } else if (route.name === 'Mind') {
-                    iconName = focused ? 'grid' : 'grid-outline';
-                  } else if (route.name === 'Add') {
-                    iconName = focused ? 'add-circle' : 'add-circle-outline';
-                  } else if (route.name === 'Settings') {
-                    iconName = focused ? 'settings' : 'settings-outline';
-                  } else {
-                    iconName = 'help-outline';
-                  }
-
-                  return <Ionicons name={iconName} size={size} color={color} />;
-                },
-                tabBarActiveTintColor: Colors.primary.blue,
-                tabBarInactiveTintColor: Colors.text.tertiary,
-                tabBarStyle: {
-                  ...Components.tabBar,
-                },
-                headerStyle: {
-                  backgroundColor: Colors.dark.background,
-                  borderBottomColor: Colors.dark.surface,
-                  borderBottomWidth: 1,
-                },
-                headerTintColor: Colors.text.primary,
-                headerTitleStyle: {
-                  fontFamily: Typography.fontFamily.heading,
-                  fontWeight: Typography.fontWeight.semibold,
-                  fontSize: Typography.fontSize.h4,
-                },
-              })}
+            <Stack.Navigator
+              screenOptions={{
+                headerShown: false,
+              }}
             >
-              <Tab.Screen 
-                name="Feed" 
-                component={FeedScreen}
+              <Stack.Screen name="MainTabs" component={MainTabNavigator} />
+              <Stack.Screen 
+                name="ArticleDetail" 
+                component={ArticleDetailScreen}
                 options={{
-                  title: 'Feed',
-                  headerTitle: 'Save Feed',
+                  headerShown: false,
+                  presentation: 'modal',
                 }}
               />
-              <Tab.Screen 
-                name="Mind" 
-                component={MindScreen}
-                options={{
-                  title: 'Mind',
-                  headerTitle: 'Visual Mind',
-                }}
-              />
-              <Tab.Screen 
-                name="Add" 
-                component={AddScreen}
-                options={{
-                  title: 'Add',
-                  headerTitle: 'Save Content',
-                }}
-              />
-              <Tab.Screen 
-                name="Settings" 
-                component={SettingsScreen}
-                options={{
-                  title: 'Settings',
-                  headerTitle: 'Settings',
-                }}
-              />
-            </Tab.Navigator>
+            </Stack.Navigator>
           </NavigationContainer>
           <StatusBar style="light" backgroundColor={Colors.dark.background} />
         </AudioProvider>

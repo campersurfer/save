@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Clipboard from '@react-native-clipboard/clipboard';
 import { ContentContext } from '../providers/ContentProvider';
 
 export default function AddScreen() {
@@ -52,10 +53,19 @@ export default function AddScreen() {
   };
 
   const handlePasteFromClipboard = async () => {
-    // In a real app, you'd use Clipboard from @react-native-clipboard/clipboard
-    // For now, we'll simulate pasting a URL
-    const mockClipboardUrl = 'https://example.com/article';
-    handleUrlChange(mockClipboardUrl);
+    try {
+      const clipboardContent = await Clipboard.getString();
+      
+      // Check if clipboard contains a URL
+      const urlPattern = /^https?:\/\/.+/i;
+      if (urlPattern.test(clipboardContent.trim())) {
+        handleUrlChange(clipboardContent.trim());
+      } else {
+        Alert.alert('No URL Found', 'The clipboard doesn\'t contain a valid URL.');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to read from clipboard.');
+    }
   };
 
   const renderQuickActions = () => (

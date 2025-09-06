@@ -1,6 +1,6 @@
 import React, { createContext, useState, useRef, useEffect, useCallback } from 'react';
-import { Audio } from 'expo-av';
-import { Platform } from 'react-native';
+import * as Speech from 'expo-speech';
+import { StorageService } from '../services/StorageService';
 
 interface Article {
   id: string;
@@ -15,6 +15,7 @@ interface Article {
 interface AudioContextType {
   // Playback state
   isPlaying: boolean;
+  isPaused: boolean;
   currentArticle: Article | null;
   currentPosition: number;
   totalDuration: number;
@@ -26,13 +27,12 @@ interface AudioContextType {
   
   // Control functions
   playArticle: (article: Article) => Promise<void>;
-  playQueue: (articles: Article[]) => Promise<void>;
+  startPlayQueue: (articles: Article[]) => Promise<void>;
   pausePlayback: () => Promise<void>;
   resumePlayback: () => Promise<void>;
   stopPlayback: () => Promise<void>;
   skipToNext: () => Promise<void>;
   skipToPrevious: () => Promise<void>;
-  seekTo: (position: number) => Promise<void>;
   setPlaybackSpeed: (speed: number) => Promise<void>;
   
   // Queue controls
@@ -47,6 +47,7 @@ interface AudioContextType {
 
 export const AudioContext = createContext<AudioContextType>({
   isPlaying: false,
+  isPaused: false,
   currentArticle: null,
   currentPosition: 0,
   totalDuration: 0,
@@ -54,13 +55,12 @@ export const AudioContext = createContext<AudioContextType>({
   playQueue: [],
   currentIndex: -1,
   playArticle: async () => {},
-  playQueue: async () => {},
+  startPlayQueue: async () => {},
   pausePlayback: async () => {},
   resumePlayback: async () => {},
   stopPlayback: async () => {},
   skipToNext: async () => {},
   skipToPrevious: async () => {},
-  seekTo: async () => {},
   setPlaybackSpeed: async () => {},
   addToQueue: () => {},
   removeFromQueue: () => {},
@@ -76,6 +76,7 @@ interface AudioProviderProps {
 export const AudioProvider: React.FC<AudioProviderProps> = ({ children }) => {
   // State
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [currentArticle, setCurrentArticle] = useState<Article | null>(null);
   const [currentPosition, setCurrentPosition] = useState(0);
   const [totalDuration, setTotalDuration] = useState(0);
@@ -85,62 +86,42 @@ export const AudioProvider: React.FC<AudioProviderProps> = ({ children }) => {
   const [sleepTimerMinutes, setSleepTimerMinutes] = useState<number | null>(null);
 
   // Refs
-  const sound = useRef<Audio.Sound | null>(null);
-  const positionTimer = useRef<NodeJS.Timeout | null>(null);
   const sleepTimer = useRef<NodeJS.Timeout | null>(null);
+  const currentSpeechId = useRef<string | null>(null);
+  const speechSettings = useRef<{
+    rate: number;
+    pitch: number;
+    language: string;
+  }>({
+    rate: 1.0,
+    pitch: 1.0,
+    language: 'en-US',
+  });
 
-  // Initialize audio session
+  // Load settings on mount
   useEffect(() => {
-    const initializeAudio = async () => {
-      try {
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: false,
-          staysActiveInBackground: true,
-          playsInSilentModeIOS: true,
-          shouldDuckAndroid: true,
-          playThroughEarpieceAndroid: false,
-        });
-      } catch (error) {
-        console.error('Error initializing audio:', error);
-      }
-    };
-
-    initializeAudio();
+    loadSettings();
   }, []);
 
-  // Position tracking
-  useEffect(() => {
-    if (isPlaying && sound.current) {
-      positionTimer.current = setInterval(async () => {
-        try {
-          const status = await sound.current!.getStatusAsync();
-          if (status.isLoaded) {
-            setCurrentPosition(status.positionMillis / 1000);
-            setTotalDuration(status.durationMillis ? status.durationMillis / 1000 : 0);
-          }
-        } catch (error) {
-          console.error('Error getting playback status:', error);
-        }
-      }, 100);
-    } else {
-      if (positionTimer.current) {
-        clearInterval(positionTimer.current);
-        positionTimer.current = null;
-      }
+  const loadSettings = async () => {
+    try {
+      const settings = await StorageService.getSettings();
+      speechSettings.current = {
+        rate: settings.speechRate,
+        pitch: settings.speechPitch,
+        language: settings.speechLanguage,
+      };
+      setPlaybackSpeedState(settings.speechRate);
+    } catch (error) {
+      console.error('Failed to load audio settings:', error);
     }
-
-    return () => {
-      if (positionTimer.current) {
-        clearInterval(positionTimer.current);
-      }
-    };
-  }, [isPlaying]);
+  };
 
   // Sleep timer effect
   useEffect(() => {
     if (sleepTimerMinutes !== null) {
       sleepTimer.current = setTimeout(async () => {
-        await fadeOutAndStop();
+        await stopPlayback();
         setSleepTimerMinutes(null);
       }, sleepTimerMinutes * 60 * 1000);
     } else {
@@ -157,112 +138,106 @@ export const AudioProvider: React.FC<AudioProviderProps> = ({ children }) => {
     };
   }, [sleepTimerMinutes]);
 
-  // Text-to-Speech function (mock implementation)
-  const generateTTSAudio = useCallback(async (text: string): Promise<string> => {
-    // In a real implementation, this would:
-    // 1. Send text to a TTS service (Google TTS, Azure Speech, etc.)
-    // 2. Return the audio file URL or base64 data
-    // 3. Handle different languages and voices
+  const prepareTextForSpeech = useCallback((article: Article): string => {
+    let textContent = '';
     
-    // For now, return a mock audio URL
-    // This would be replaced with actual TTS integration
-    return 'https://www.soundjay.com/misc/sounds/bell-ringing-05.wav';
-  }, []);
-
-  const prepareAudioContent = useCallback(async (article: Article): Promise<string> => {
-    // Prepare the text content for TTS
-    let textContent = `${article.title}. `;
+    // Add title
+    textContent += `Article: ${article.title}. `;
     
+    // Add author if available
     if (article.author) {
       textContent += `By ${article.author}. `;
     }
     
+    // Add content
     textContent += article.content;
     
-    // Clean up text for better TTS
+    // Clean up text for better speech
     textContent = textContent
-      .replace(/[^\w\s.,!?;:'"()-]/g, '') // Remove special characters
-      .replace(/\s+/g, ' ') // Normalize whitespace
+      .replace(/\s+/g, ' ')
+      .replace(/\n+/g, '. ')
+      .replace(/([.!?])\s*([.!?])/g, '$1 ')
       .trim();
     
-    // Generate TTS audio
-    return await generateTTSAudio(textContent);
-  }, [generateTTSAudio]);
+    return textContent;
+  }, []);
 
-  const loadAndPlayAudio = useCallback(async (audioUri: string) => {
-    try {
-      // Unload previous sound
-      if (sound.current) {
-        await sound.current.unloadAsync();
-      }
-
-      // Load new sound
-      const { sound: newSound } = await Audio.Sound.createAsync(
-        { uri: audioUri },
-        {
-          shouldPlay: true,
-          rate: playbackSpeed,
-          volume: 1.0,
-        }
-      );
-
-      sound.current = newSound;
-
-      // Set up playback status update
-      sound.current.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded) {
-          setCurrentPosition(status.positionMillis / 1000);
-          setTotalDuration(status.durationMillis ? status.durationMillis / 1000 : 0);
-          
-          // Auto-advance to next article when current finishes
-          if (status.didJustFinish) {
-            skipToNext();
-          }
-        }
-      });
-
-      setIsPlaying(true);
-    } catch (error) {
-      console.error('Error loading audio:', error);
-    }
-  }, [playbackSpeed]);
+  const estimateReadingTime = useCallback((text: string): number => {
+    // Average speech rate is about 150-200 words per minute
+    // We'll use 180 WPM as a middle ground
+    const words = text.split(/\s+/).length;
+    const minutes = words / 180;
+    return Math.max(minutes * 60, 10); // Minimum 10 seconds
+  }, []);
 
   const playArticle = useCallback(async (article: Article) => {
     try {
+      await stopPlayback();
+      
       setCurrentArticle(article);
       setQueue([article]);
       setCurrentIndex(0);
+      setCurrentPosition(0);
       
-      // For development, use a mock audio file
-      // In production, this would generate TTS audio
-      const audioUri = await prepareAudioContent(article);
-      await loadAndPlayAudio(audioUri);
+      const textToSpeak = prepareTextForSpeech(article);
+      const estimatedDuration = estimateReadingTime(textToSpeak);
+      setTotalDuration(estimatedDuration);
+      
+      // Create unique speech ID for tracking
+      const speechId = `speech_${Date.now()}`;
+      currentSpeechId.current = speechId;
+      
+      // Start speech
+      await Speech.speak(textToSpeak, {
+        language: speechSettings.current.language,
+        pitch: speechSettings.current.pitch,
+        rate: speechSettings.current.rate,
+        onStart: () => {
+          if (currentSpeechId.current === speechId) {
+            setIsPlaying(true);
+            setIsPaused(false);
+          }
+        },
+        onDone: () => {
+          if (currentSpeechId.current === speechId) {
+            skipToNext();
+          }
+        },
+        onStopped: () => {
+          if (currentSpeechId.current === speechId) {
+            setIsPlaying(false);
+            setIsPaused(false);
+          }
+        },
+        onError: (error) => {
+          console.error('Speech synthesis error:', error);
+          if (currentSpeechId.current === speechId) {
+            setIsPlaying(false);
+            setIsPaused(false);
+          }
+        }
+      });
+      
     } catch (error) {
       console.error('Error playing article:', error);
+      setIsPlaying(false);
+      setIsPaused(false);
     }
-  }, [prepareAudioContent, loadAndPlayAudio]);
+  }, [prepareTextForSpeech, estimateReadingTime]);
 
-  const playQueueHandler = useCallback(async (articles: Article[]) => {
+  const startPlayQueue = useCallback(async (articles: Article[]) => {
     if (articles.length === 0) return;
     
     setQueue(articles);
     setCurrentIndex(0);
-    setCurrentArticle(articles[0]);
-    
-    try {
-      const audioUri = await prepareAudioContent(articles[0]);
-      await loadAndPlayAudio(audioUri);
-    } catch (error) {
-      console.error('Error playing queue:', error);
-    }
-  }, [prepareAudioContent, loadAndPlayAudio]);
+    await playArticle(articles[0]);
+  }, [playArticle]);
 
   const pausePlayback = useCallback(async () => {
     try {
-      if (sound.current) {
-        await sound.current.pauseAsync();
-        setIsPlaying(false);
-      }
+      await Speech.pause();
+      setIsPlaying(false);
+      setIsPaused(true);
     } catch (error) {
       console.error('Error pausing playback:', error);
     }
@@ -270,10 +245,9 @@ export const AudioProvider: React.FC<AudioProviderProps> = ({ children }) => {
 
   const resumePlayback = useCallback(async () => {
     try {
-      if (sound.current) {
-        await sound.current.playAsync();
-        setIsPlaying(true);
-      }
+      await Speech.resume();
+      setIsPlaying(true);
+      setIsPaused(false);
     } catch (error) {
       console.error('Error resuming playback:', error);
     }
@@ -281,11 +255,11 @@ export const AudioProvider: React.FC<AudioProviderProps> = ({ children }) => {
 
   const stopPlayback = useCallback(async () => {
     try {
-      if (sound.current) {
-        await sound.current.stopAsync();
-        setIsPlaying(false);
-        setCurrentPosition(0);
-      }
+      await Speech.stop();
+      currentSpeechId.current = null;
+      setIsPlaying(false);
+      setIsPaused(false);
+      setCurrentPosition(0);
     } catch (error) {
       console.error('Error stopping playback:', error);
     }
@@ -295,67 +269,45 @@ export const AudioProvider: React.FC<AudioProviderProps> = ({ children }) => {
     const nextIndex = currentIndex + 1;
     if (nextIndex < queue.length) {
       setCurrentIndex(nextIndex);
-      setCurrentArticle(queue[nextIndex]);
-      
-      try {
-        const audioUri = await prepareAudioContent(queue[nextIndex]);
-        await loadAndPlayAudio(audioUri);
-      } catch (error) {
-        console.error('Error skipping to next:', error);
-      }
+      await playArticle(queue[nextIndex]);
     } else {
       // End of queue
       await stopPlayback();
       setCurrentArticle(null);
       setCurrentIndex(-1);
     }
-  }, [currentIndex, queue, prepareAudioContent, loadAndPlayAudio, stopPlayback]);
+  }, [currentIndex, queue, playArticle, stopPlayback]);
 
   const skipToPrevious = useCallback(async () => {
     const previousIndex = currentIndex - 1;
     if (previousIndex >= 0) {
       setCurrentIndex(previousIndex);
-      setCurrentArticle(queue[previousIndex]);
-      
-      try {
-        const audioUri = await prepareAudioContent(queue[previousIndex]);
-        await loadAndPlayAudio(audioUri);
-      } catch (error) {
-        console.error('Error skipping to previous:', error);
-      }
+      await playArticle(queue[previousIndex]);
     } else {
       // Restart current article
-      try {
-        if (sound.current) {
-          await sound.current.setPositionAsync(0);
-        }
-      } catch (error) {
-        console.error('Error restarting article:', error);
+      if (currentArticle) {
+        await playArticle(currentArticle);
       }
     }
-  }, [currentIndex, queue, prepareAudioContent, loadAndPlayAudio]);
-
-  const seekTo = useCallback(async (position: number) => {
-    try {
-      if (sound.current) {
-        await sound.current.setPositionAsync(position * 1000);
-        setCurrentPosition(position);
-      }
-    } catch (error) {
-      console.error('Error seeking:', error);
-    }
-  }, []);
+  }, [currentIndex, queue, playArticle, currentArticle]);
 
   const setPlaybackSpeed = useCallback(async (speed: number) => {
     try {
-      if (sound.current) {
-        await sound.current.setRateAsync(speed, true);
-        setPlaybackSpeedState(speed);
+      speechSettings.current.rate = speed;
+      setPlaybackSpeedState(speed);
+      
+      // Save setting to storage
+      await StorageService.updateSettings({ speechRate: speed });
+      
+      // If currently playing, we need to restart with new speed
+      // Note: Expo Speech doesn't support changing speed mid-playback
+      if (isPlaying && currentArticle) {
+        await playArticle(currentArticle);
       }
     } catch (error) {
       console.error('Error setting playback speed:', error);
     }
-  }, []);
+  }, [isPlaying, currentArticle, playArticle]);
 
   const addToQueue = useCallback((article: Article) => {
     setQueue(prevQueue => [...prevQueue, article]);
@@ -375,46 +327,41 @@ export const AudioProvider: React.FC<AudioProviderProps> = ({ children }) => {
     });
   }, [currentIndex]);
 
-  const clearQueue = useCallback(() => {
+  const clearQueue = useCallback(async () => {
+    await stopPlayback();
     setQueue([]);
     setCurrentIndex(-1);
-    stopPlayback();
+    setCurrentArticle(null);
   }, [stopPlayback]);
 
   const setSleepTimer = useCallback((minutes: number | null) => {
     setSleepTimerMinutes(minutes);
   }, []);
 
-  const fadeOutAndStop = useCallback(async () => {
-    // Implement fade out effect
-    if (sound.current) {
-      try {
-        // Gradually reduce volume over 3 seconds
-        const fadeSteps = 30;
-        const fadeInterval = 100; // 100ms intervals
-        
-        for (let i = fadeSteps; i >= 0; i--) {
-          await sound.current.setVolumeAsync(i / fadeSteps);
-          await new Promise(resolve => setTimeout(resolve, fadeInterval));
-        }
-        
-        await stopPlayback();
-        await sound.current.setVolumeAsync(1.0); // Reset volume for next play
-      } catch (error) {
-        console.error('Error during fade out:', error);
-      }
+  // Track position for currently playing speech
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    
+    if (isPlaying && !isPaused && totalDuration > 0) {
+      interval = setInterval(() => {
+        setCurrentPosition(prev => {
+          const newPosition = prev + 1;
+          return newPosition >= totalDuration ? totalDuration : newPosition;
+        });
+      }, 1000);
     }
-  }, [stopPlayback]);
+    
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [isPlaying, isPaused, totalDuration]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (sound.current) {
-        sound.current.unloadAsync();
-      }
-      if (positionTimer.current) {
-        clearInterval(positionTimer.current);
-      }
+      Speech.stop();
       if (sleepTimer.current) {
         clearTimeout(sleepTimer.current);
       }
@@ -423,6 +370,7 @@ export const AudioProvider: React.FC<AudioProviderProps> = ({ children }) => {
 
   const contextValue: AudioContextType = {
     isPlaying,
+    isPaused,
     currentArticle,
     currentPosition,
     totalDuration,
@@ -430,13 +378,12 @@ export const AudioProvider: React.FC<AudioProviderProps> = ({ children }) => {
     playQueue: queue,
     currentIndex,
     playArticle,
-    playQueue: playQueueHandler,
+    startPlayQueue,
     pausePlayback,
     resumePlayback,
     stopPlayback,
     skipToNext,
     skipToPrevious,
-    seekTo,
     setPlaybackSpeed,
     addToQueue,
     removeFromQueue,

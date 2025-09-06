@@ -25,7 +25,6 @@ export const AudioPlayer: React.FC = () => {
     resumePlayback,
     skipToNext,
     skipToPrevious,
-    seekTo,
     setPlaybackSpeed,
     playbackSpeed,
   } = useContext(AudioContext);
@@ -57,7 +56,8 @@ export const AudioPlayer: React.FC = () => {
       const seekPosition = Math.max(0, Math.min(1, evt.nativeEvent.locationX / (SCREEN_WIDTH - 32)));
       const newPosition = seekPosition * totalDuration;
       if (!isNaN(newPosition)) {
-        seekTo(newPosition);
+        // Seeking not currently supported with Expo Speech
+        // Would need to implement with a different audio library for seek functionality
       }
     },
     onPanResponderRelease: () => {

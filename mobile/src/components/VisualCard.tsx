@@ -66,7 +66,7 @@ export const VisualCard: React.FC<VisualCardProps> = ({ item, width, onPress }) 
     }
   };
 
-  const getGradientColors = (): string[] => {
+  const getGradientColors = (): [string, string, ...string[]] => {
     const baseColor = getMoodColor();
     return [`${baseColor}20`, `${baseColor}40`];
   };

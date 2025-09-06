@@ -10,10 +10,12 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { ContentContext } from '../providers/ContentProvider';
 import { AudioContext } from '../providers/AudioProvider';
 import { ArticleCard } from '../components/ArticleCard';
 import { AudioPlayer } from '../components/AudioPlayer';
+import { Colors, Typography, Spacing } from '../styles/BauhausDesign';
 
 interface Article {
   id: string;
@@ -30,11 +32,12 @@ interface Article {
 }
 
 export default function FeedScreen() {
+  const navigation = useNavigation();
   const { articles, isLoading, refreshArticles, markAsRead } = useContext(ContentContext);
   const { 
     isPlaying, 
     currentArticle, 
-    playQueue, 
+    startPlayQueue, 
     pausePlayback, 
     resumePlayback,
     skipToNext,
@@ -50,8 +53,8 @@ export default function FeedScreen() {
     if (isSelectionMode) {
       toggleSelection(article.id);
     } else {
-      // Navigate to article detail or start reading
-      markAsRead(article.id);
+      // Navigate to article detail screen
+      (navigation as any).navigate('ArticleDetail', { article });
     }
   };
 
@@ -73,7 +76,7 @@ export default function FeedScreen() {
       Alert.alert('No Articles', 'No unread articles to play');
       return;
     }
-    playQueue(unreadArticles);
+    startPlayQueue(unreadArticles);
   };
 
   const playSelectedArticles = () => {
@@ -82,7 +85,7 @@ export default function FeedScreen() {
     );
     if (articlesToPlay.length === 0) return;
     
-    playQueue(articlesToPlay);
+    startPlayQueue(articlesToPlay);
     setIsSelectionMode(false);
     setSelectedArticles([]);
   };
@@ -152,8 +155,8 @@ export default function FeedScreen() {
           <RefreshControl
             refreshing={isLoading}
             onRefresh={refreshArticles}
-            tintColor="#0066FF"
-            colors={['#0066FF']}
+            tintColor={Colors.primary.blue}
+            colors={[Colors.primary.blue]}
           />
         }
         contentContainerStyle={articles.length === 0 ? styles.emptyContainer : undefined}
@@ -201,88 +204,88 @@ export default function FeedScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0A0A0B',
+    backgroundColor: Colors.dark.background,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
   },
   header: {
-    padding: 16,
-    backgroundColor: '#0A0A0B',
+    padding: Spacing.md,
+    backgroundColor: Colors.dark.background,
     borderBottomWidth: 1,
-    borderBottomColor: '#1A1A1C',
+    borderBottomColor: Colors.dark.surface,
   },
   headerContent: {
     marginBottom: 12,
   },
   queueCount: {
-    fontSize: 24,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontSize: Typography.fontSize.h2,
+    fontWeight: Typography.fontWeight.semibold,
+    color: Colors.text.primary,
     marginBottom: 4,
   },
   readTime: {
-    fontSize: 14,
-    color: '#6B6B70',
+    fontSize: Typography.fontSize.caption,
+    color: Colors.text.tertiary,
   },
   playAllButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1A1A1C',
-    paddingHorizontal: 16,
+    backgroundColor: Colors.dark.surface,
+    paddingHorizontal: Spacing.md,
     paddingVertical: 12,
     borderRadius: 8,
     borderWidth: 2,
-    borderColor: '#0066FF',
+    borderColor: Colors.primary.blue,
   },
   playAllText: {
-    color: '#0066FF',
-    fontWeight: '600',
-    marginLeft: 8,
-    fontSize: 16,
+    color: Colors.primary.blue,
+    fontWeight: Typography.fontWeight.semibold,
+    marginLeft: Spacing.sm,
+    fontSize: Typography.fontSize.body,
   },
   emptyState: {
     alignItems: 'center',
-    paddingHorizontal: 32,
+    paddingHorizontal: Spacing.xl,
   },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginTop: 16,
-    marginBottom: 8,
+    fontSize: Typography.fontSize.h3,
+    fontWeight: Typography.fontWeight.semibold,
+    color: Colors.text.primary,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   emptyText: {
-    fontSize: 16,
-    color: '#6B6B70',
+    fontSize: Typography.fontSize.body,
+    color: Colors.text.tertiary,
     textAlign: 'center',
     lineHeight: 24,
   },
   selectionActions: {
     flexDirection: 'row',
-    backgroundColor: '#1A1A1C',
-    paddingHorizontal: 16,
+    backgroundColor: Colors.dark.surface,
+    paddingHorizontal: Spacing.md,
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: '#2A2A2C',
+    borderTopColor: Colors.dark.surfaceHigh,
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0066FF',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    backgroundColor: Colors.primary.blue,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
     borderRadius: 6,
     marginRight: 12,
   },
   cancelButton: {
-    backgroundColor: '#6B6B70',
+    backgroundColor: Colors.text.tertiary,
   },
   actionText: {
-    color: '#FFFFFF',
-    fontWeight: '500',
+    color: Colors.text.primary,
+    fontWeight: Typography.fontWeight.medium,
     marginLeft: 6,
-    fontSize: 14,
+    fontSize: Typography.fontSize.caption,
   },
 });

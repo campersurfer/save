@@ -77,11 +77,11 @@ export const Typography = {
   
   // Font Weights
   fontWeight: {
-    regular: '400',
-    medium: '500',
-    semibold: '600',
-    bold: '700',
-    black: '900',
+    regular: '400' as '400',
+    medium: '500' as '500',
+    semibold: '600' as '600',
+    bold: '700' as '700',
+    black: '900' as '900',
   },
   
   // Line Heights
