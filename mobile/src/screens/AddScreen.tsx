@@ -12,7 +12,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import Clipboard from '@react-native-clipboard/clipboard';
+import * as Clipboard from 'expo-clipboard';
 import { ContentContext } from '../providers/ContentProvider';
 
 export default function AddScreen() {
@@ -54,7 +54,7 @@ export default function AddScreen() {
 
   const handlePasteFromClipboard = async () => {
     try {
-      const clipboardContent = await Clipboard.getString();
+      const clipboardContent = await Clipboard.getStringAsync();
       
       // Check if clipboard contains a URL
       const urlPattern = /^https?:\/\/.+/i;
