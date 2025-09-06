@@ -1,0 +1,331 @@
+# CDN Configuration and Edge Caching
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cdn-config
+  namespace: save-app
+data:
+  cloudflare-config.yaml: |
+    # Cloudflare Worker for edge caching and optimization
+    zones:
+      - zone_id: "your-cloudflare-zone-id"
+        name: "save.app"
+        settings:
+          # Performance
+          minify:
+            css: true
+            js: true
+            html: true
+          brotli: true
+          early_hints: true
+          http2: true
+          http3: true
+          zero_rtt: true
+          
+          # Security
+          ssl: "flexible"
+          always_use_https: true
+          automatic_https_rewrites: true
+          opportunistic_encryption: true
+          tls_1_3: true
+          min_tls_version: "1.2"
+          
+          # Caching
+          cache_level: "aggressive"
+          browser_cache_ttl: 31536000  # 1 year
+          edge_cache_ttl: 7776000      # 90 days
+          
+          # Page Rules
+          page_rules:
+            - targets:
+                - constraint:
+                    operator: "matches"
+                    value: "save.app/static/*"
+              actions:
+                - id: "cache_level"
+                  value: "cache_everything"
+                - id: "edge_cache_ttl"
+                  value: 31536000
+                - id: "browser_cache_ttl"
+                  value: 31536000
+            
+            - targets:
+                - constraint:
+                    operator: "matches" 
+                    value: "save.app/api/*"
+              actions:
+                - id: "cache_level"
+                  value: "bypass"
+                - id: "disable_performance"
+                  value: true
+          
+          # Worker Scripts
+          workers:
+            - name: "edge-cache"
+              script: |
+                addEventListener('fetch', event => {
+                  event.respondWith(handleRequest(event.request))
+                })
+                
+                async function handleRequest(request) {
+                  const url = new URL(request.url)
+                  
+                  // API requests - bypass cache
+                  if (url.pathname.startsWith('/api/')) {
+                    return fetch(request)
+                  }
+                  
+                  // Static assets - aggressive caching
+                  if (url.pathname.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/)) {
+                    const cache = caches.default
+                    let response = await cache.match(request)
+                    
+                    if (!response) {
+                      response = await fetch(request)
+                      const headers = new Headers(response.headers)
+                      headers.set('Cache-Control', 'public, max-age=31536000, immutable')
+                      headers.set('Vary', 'Accept-Encoding')
+                      
+                      response = new Response(response.body, {
+                        status: response.status,
+                        statusText: response.statusText,
+                        headers: headers
+                      })
+                      
+                      await cache.put(request, response.clone())
+                    }
+                    
+                    return response
+                  }
+                  
+                  // HTML pages - short cache with revalidation
+                  if (url.pathname.endsWith('/') || url.pathname.endsWith('.html')) {
+                    const cache = caches.default
+                    let response = await cache.match(request)
+                    
+                    if (!response || isCacheStale(response)) {
+                      response = await fetch(request)
+                      const headers = new Headers(response.headers)
+                      headers.set('Cache-Control', 'public, max-age=300, must-revalidate')
+                      
+                      response = new Response(response.body, {
+                        status: response.status,
+                        statusText: response.statusText,
+                        headers: headers
+                      })
+                      
+                      await cache.put(request, response.clone())
+                    }
+                    
+                    return response
+                  }
+                  
+                  return fetch(request)
+                }
+                
+                function isCacheStale(response) {
+                  const cacheTime = new Date(response.headers.get('Date')).getTime()
+                  const now = new Date().getTime()
+                  return (now - cacheTime) > 300000 // 5 minutes
+                }
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-cdn-config
+  namespace: save-app
+data:
+  cdn.conf: |
+    # CDN integration for nginx
+    
+    # Map for CDN URLs
+    map $request_uri $cdn_uri {
+        ~*\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ https://cdn.save.app$request_uri;
+        default "";
+    }
+    
+    # Upstream for origin server
+    upstream origin_server {
+        server nginx-loadbalancer.save-app.svc.cluster.local:80;
+        keepalive 32;
+    }
+    
+    # CDN Edge server configuration
+    server {
+        listen 80;
+        server_name cdn.save.app static.save.app;
+        
+        # Enable compression
+        gzip on;
+        gzip_vary on;
+        gzip_min_length 1000;
+        gzip_comp_level 6;
+        gzip_types
+            application/javascript
+            application/json
+            application/xml
+            text/css
+            text/javascript
+            text/plain
+            text/xml
+            image/svg+xml;
+        
+        # Static asset optimization
+        location ~* \.(js|css)$ {
+            proxy_pass http://origin_server;
+            proxy_cache static_cache;
+            proxy_cache_valid 200 1y;
+            proxy_cache_valid 404 1h;
+            proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
+            proxy_cache_lock on;
+            proxy_cache_revalidate on;
+            
+            # Add performance headers
+            add_header Cache-Control "public, max-age=31536000, immutable";
+            add_header Vary "Accept-Encoding";
+            add_header X-Cache-Status $upstream_cache_status;
+            
+            # CORS for fonts and assets
+            add_header Access-Control-Allow-Origin "*";
+            add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS";
+        }
+        
+        # Image optimization
+        location ~* \.(png|jpg|jpeg|gif|webp|avif)$ {
+            proxy_pass http://origin_server;
+            proxy_cache image_cache;
+            proxy_cache_valid 200 30d;
+            proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
+            
+            # Image optimization headers
+            add_header Cache-Control "public, max-age=2592000"; # 30 days
+            add_header Vary "Accept, Accept-Encoding";
+            add_header X-Cache-Status $upstream_cache_status;
+            
+            # WebP conversion if supported
+            if ($http_accept ~* "webp") {
+                set $webp "webp";
+            }
+            
+            # AVIF conversion if supported  
+            if ($http_accept ~* "avif") {
+                set $avif "avif";
+            }
+        }
+        
+        # Font files
+        location ~* \.(woff|woff2|ttf|eot|otf)$ {
+            proxy_pass http://origin_server;
+            proxy_cache font_cache;
+            proxy_cache_valid 200 1y;
+            
+            add_header Cache-Control "public, max-age=31536000, immutable";
+            add_header Access-Control-Allow-Origin "*";
+            add_header X-Cache-Status $upstream_cache_status;
+        }
+        
+        # Default handler
+        location / {
+            proxy_pass http://origin_server;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+    }
+    
+    # Cache zones
+    proxy_cache_path /var/cache/nginx/static levels=2:2 keys_zone=static_cache:100m inactive=1y max_size=10g use_temp_path=off;
+    proxy_cache_path /var/cache/nginx/images levels=2:2 keys_zone=image_cache:100m inactive=30d max_size=5g use_temp_path=off;
+    proxy_cache_path /var/cache/nginx/fonts levels=2:2 keys_zone=font_cache:10m inactive=1y max_size=1g use_temp_path=off;
+
+---
+# Kubernetes Ingress with CDN annotations
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: save-app-ingress
+  namespace: save-app
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "X-Frame-Options: DENY";
+      more_set_headers "X-Content-Type-Options: nosniff";
+      more_set_headers "X-XSS-Protection: 1; mode=block";
+      more_set_headers "Strict-Transport-Security: max-age=31536000; includeSubDomains; preload";
+      more_set_headers "Referrer-Policy: strict-origin-when-cross-origin";
+      more_set_headers "Permissions-Policy: geolocation=(), microphone=(), camera=()";
+    nginx.ingress.kubernetes.io/server-snippet: |
+      # CDN and caching configuration
+      location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        add_header Vary "Accept-Encoding";
+      }
+spec:
+  tls:
+  - hosts:
+    - save.app
+    - www.save.app
+    - api.save.app
+    - cdn.save.app
+    - static.save.app
+    secretName: save-tls-cert
+  rules:
+  - host: save.app
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: nginx-loadbalancer
+            port:
+              number: 80
+  - host: www.save.app
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: nginx-loadbalancer
+            port:
+              number: 80
+  - host: api.save.app
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: save-app
+            port:
+              number: 3001
+  - host: cdn.save.app
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: nginx-loadbalancer
+            port:
+              number: 80
+  - host: static.save.app
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: nginx-loadbalancer
+            port:
+              number: 80

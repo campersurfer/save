@@ -1,0 +1,26 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: save-app-base
+  namespace: save-app
+
+resources:
+  - namespace.yaml
+  - redis.yaml
+  - postgres.yaml
+  - app.yaml
+  - ingress.yaml
+  - monitoring.yaml
+
+commonLabels:
+  app.kubernetes.io/name: save-app
+  app.kubernetes.io/instance: save-app
+  app.kubernetes.io/version: "1.0.0"
+  app.kubernetes.io/component: web-service
+  app.kubernetes.io/part-of: save-app
+  app.kubernetes.io/managed-by: kustomize
+
+images:
+  - name: save-app
+    newTag: latest

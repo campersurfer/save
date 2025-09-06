@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  # Redis for development
+  redis:
+    image: redis:7-alpine
+    container_name: save-redis-dev
+    command: redis-server
+    ports:
+      - "6379:6379"
+    networks:
+      - save-network
+
+  # PostgreSQL for development
+  postgres:
+    image: postgres:15-alpine
+    container_name: save-postgres-dev
+    environment:
+      POSTGRES_DB: save_app_dev
+      POSTGRES_USER: save_user
+      POSTGRES_PASSWORD: save_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    networks:
+      - save-network
+
+  # Development application with hot reload
+  app-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: save-app-dev
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DATABASE_PATH=/app/storage/save.db
+      - STORAGE_PATH=/app/storage
+      - CACHE_PATH=/app/cache
+      - LOG_PATH=/app/logs
+      - FRONTEND_URL=http://localhost:3000
+    ports:
+      - "3001:3001"
+      - "9229:9229" # Node.js debugging port
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - dev_storage:/app/storage
+      - dev_cache:/app/cache
+      - dev_logs:/app/logs
+    networks:
+      - save-network
+    depends_on:
+      - redis
+      - postgres
+    command: npm run dev
+
+volumes:
+  postgres_dev_data:
+    driver: local
+  dev_storage:
+    driver: local
+  dev_cache:
+    driver: local
+  dev_logs:
+    driver: local
+
+networks:
+  save-network:
+    driver: bridge

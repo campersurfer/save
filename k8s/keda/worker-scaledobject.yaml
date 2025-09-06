@@ -1,0 +1,145 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: save-worker-scaler
+  namespace: save-app
+spec:
+  scaleTargetRef:
+    name: save-workers
+  minReplicaCount: 2
+  maxReplicaCount: 20
+  pollingInterval: 15
+  cooldownPeriod: 60
+  idleReplicaCount: 2
+  triggers:
+  # Scale based on Redis queue length
+  - type: redis
+    metadata:
+      address: save-redis.save-app.svc.cluster.local:6379
+      listName: bull:extraction:waiting
+      listLength: "5"
+      enableTLS: "false"
+    authenticationRef:
+      name: redis-auth
+  
+  # Scale based on Prometheus metrics
+  - type: prometheus
+    metadata:
+      serverAddress: http://save-prometheus.save-app.svc.cluster.local:9090
+      metricName: extraction_queue_depth
+      threshold: "10"
+      query: |
+        sum(rate(extraction_requests_total[1m]))
+  
+  # Scale based on CPU utilization
+  - type: cpu
+    metadata:
+      value: "70"
+  
+  # Scale based on memory utilization  
+  - type: memory
+    metadata:
+      value: "80"
+
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: save-backend-scaler
+  namespace: save-app
+spec:
+  scaleTargetRef:
+    name: save-app
+  minReplicaCount: 3
+  maxReplicaCount: 15
+  pollingInterval: 10
+  cooldownPeriod: 30
+  triggers:
+  # Scale based on HTTP requests per second
+  - type: prometheus
+    metadata:
+      serverAddress: http://save-prometheus.save-app.svc.cluster.local:9090
+      metricName: http_requests_per_second
+      threshold: "100"
+      query: |
+        sum(rate(http_requests_total{job="save-backend"}[1m]))
+  
+  # Scale based on response time
+  - type: prometheus
+    metadata:
+      serverAddress: http://save-prometheus.save-app.svc.cluster.local:9090
+      metricName: http_request_duration_p95
+      threshold: "0.5"
+      query: |
+        histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job="save-backend"}[5m])) by (le))
+
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledJob
+metadata:
+  name: save-batch-processor
+  namespace: save-app
+spec:
+  jobTargetRef:
+    template:
+      spec:
+        template:
+          spec:
+            containers:
+            - name: batch-processor
+              image: save-app:latest
+              command: ["node", "scripts/batch-process.js"]
+              env:
+              - name: NODE_ENV
+                value: "production"
+              - name: REDIS_URL
+                valueFrom:
+                  secretKeyRef:
+                    name: save-secrets
+                    key: redis-url
+            restartPolicy: OnFailure
+    backoffLimit: 4
+    parallelism: 1
+    completions: 1
+  pollingInterval: 30
+  maxReplicaCount: 5
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  triggers:
+  # Process large batches during off-peak hours
+  - type: cron
+    metadata:
+      timezone: UTC
+      start: "0 2 * * *"    # 2 AM daily
+      end: "0 6 * * *"      # 6 AM daily
+      desiredReplicas: "2"
+  
+  # Scale based on pending batch jobs
+  - type: redis
+    metadata:
+      address: save-redis.save-app.svc.cluster.local:6379
+      listName: bull:batch:waiting
+      listLength: "10"
+    authenticationRef:
+      name: redis-auth
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: redis-auth
+  namespace: save-app
+type: Opaque
+data:
+  password: ""  # Base64 encoded Redis password (if needed)
+---
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: redis-auth
+  namespace: save-app
+spec:
+  secretTargetRef:
+  - parameter: password
+    name: redis-auth
+    key: password

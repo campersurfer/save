@@ -1,0 +1,364 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: monitoring
+data:
+  save-app-overview.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "title": "Save App - System Overview",
+        "tags": ["save-app", "overview"],
+        "timezone": "browser",
+        "panels": [
+          {
+            "id": 1,
+            "title": "Request Rate",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(http_requests_total[5m])",
+                "legendFormat": "{{job}} - {{method}} {{status}}"
+              }
+            ],
+            "yAxes": [
+              {
+                "label": "Requests/sec"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+          },
+          {
+            "id": 2,
+            "title": "Response Time",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket[5m]))",
+                "legendFormat": "50th percentile"
+              },
+              {
+                "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
+                "legendFormat": "95th percentile"
+              },
+              {
+                "expr": "histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m]))",
+                "legendFormat": "99th percentile"
+              }
+            ],
+            "yAxes": [
+              {
+                "label": "Seconds"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+          },
+          {
+            "id": 3,
+            "title": "Error Rate",
+            "type": "singlestat",
+            "targets": [
+              {
+                "expr": "(rate(http_requests_total{status=~\"5..\"}[5m]) / rate(http_requests_total[5m])) * 100",
+                "legendFormat": "Error Rate %"
+              }
+            ],
+            "thresholds": "1,5",
+            "colorBackground": true,
+            "gridPos": {"h": 4, "w": 6, "x": 0, "y": 8}
+          },
+          {
+            "id": 4,
+            "title": "Active Connections",
+            "type": "singlestat",
+            "targets": [
+              {
+                "expr": "nginx_connections_active",
+                "legendFormat": "Active Connections"
+              }
+            ],
+            "gridPos": {"h": 4, "w": 6, "x": 6, "y": 8}
+          },
+          {
+            "id": 5,
+            "title": "Queue Length",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "redis_list_length{key=\"extraction_queue\"}",
+                "legendFormat": "Extraction Queue"
+              },
+              {
+                "expr": "redis_list_length{key=\"priority_queue\"}",
+                "legendFormat": "Priority Queue"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+          },
+          {
+            "id": 6,
+            "title": "CPU Usage",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "100 - (avg by(instance) (irate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+                "legendFormat": "{{instance}}"
+              }
+            ],
+            "yAxes": [
+              {
+                "label": "Percent",
+                "max": 100,
+                "min": 0
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}
+          },
+          {
+            "id": 7,
+            "title": "Memory Usage",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100",
+                "legendFormat": "{{instance}}"
+              }
+            ],
+            "yAxes": [
+              {
+                "label": "Percent",
+                "max": 100,
+                "min": 0
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16}
+          }
+        ],
+        "time": {
+          "from": "now-1h",
+          "to": "now"
+        },
+        "refresh": "5s"
+      }
+    }
+
+  save-app-extraction.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "title": "Save App - Extraction Pipeline",
+        "tags": ["save-app", "extraction"],
+        "timezone": "browser",
+        "panels": [
+          {
+            "id": 1,
+            "title": "Extraction Success Rate",
+            "type": "singlestat",
+            "targets": [
+              {
+                "expr": "(rate(extraction_success_total[10m]) / rate(extraction_total[10m])) * 100",
+                "legendFormat": "Success Rate %"
+              }
+            ],
+            "thresholds": "70,90",
+            "colorBackground": true,
+            "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0}
+          },
+          {
+            "id": 2,
+            "title": "Extraction Rate",
+            "type": "singlestat",
+            "targets": [
+              {
+                "expr": "rate(extraction_total[5m])",
+                "legendFormat": "Extractions/sec"
+              }
+            ],
+            "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0}
+          },
+          {
+            "id": 3,
+            "title": "Average Extraction Time",
+            "type": "singlestat",
+            "targets": [
+              {
+                "expr": "rate(extraction_duration_seconds_sum[5m]) / rate(extraction_duration_seconds_count[5m])",
+                "legendFormat": "Avg Time (s)"
+              }
+            ],
+            "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0}
+          },
+          {
+            "id": 4,
+            "title": "Active Workers",
+            "type": "singlestat",
+            "targets": [
+              {
+                "expr": "sum(up{job=\"save-app-workers\"})",
+                "legendFormat": "Workers"
+              }
+            ],
+            "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0}
+          },
+          {
+            "id": 5,
+            "title": "Extraction Types",
+            "type": "piechart",
+            "targets": [
+              {
+                "expr": "rate(extraction_total[5m])",
+                "legendFormat": "{{type}}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 8, "x": 0, "y": 4}
+          },
+          {
+            "id": 6,
+            "title": "Extraction Duration by Type",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.50, rate(extraction_duration_seconds_bucket[5m]))",
+                "legendFormat": "50th percentile - {{type}}"
+              },
+              {
+                "expr": "histogram_quantile(0.95, rate(extraction_duration_seconds_bucket[5m]))",
+                "legendFormat": "95th percentile - {{type}}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 16, "x": 8, "y": 4}
+          },
+          {
+            "id": 7,
+            "title": "Queue Processing Rate",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(redis_commands_total{cmd=\"lpop\"}[5m])",
+                "legendFormat": "Queue Pop Rate"
+              },
+              {
+                "expr": "rate(redis_commands_total{cmd=\"rpush\"}[5m])",
+                "legendFormat": "Queue Push Rate"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12}
+          },
+          {
+            "id": 8,
+            "title": "Failure Reasons",
+            "type": "table",
+            "targets": [
+              {
+                "expr": "rate(extraction_failures_total[5m])",
+                "format": "table",
+                "legendFormat": "{{reason}}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12}
+          }
+        ],
+        "time": {
+          "from": "now-1h",
+          "to": "now"
+        },
+        "refresh": "10s"
+      }
+    }
+
+  save-app-performance.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "title": "Save App - Performance Metrics",
+        "tags": ["save-app", "performance"],
+        "timezone": "browser",
+        "panels": [
+          {
+            "id": 1,
+            "title": "API Response Times",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket{job=\"save-app-backend\"}[5m]))",
+                "legendFormat": "50th percentile"
+              },
+              {
+                "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job=\"save-app-backend\"}[5m]))",
+                "legendFormat": "95th percentile"
+              },
+              {
+                "expr": "histogram_quantile(0.99, rate(http_request_duration_seconds_bucket{job=\"save-app-backend\"}[5m]))",
+                "legendFormat": "99th percentile"
+              }
+            ],
+            "yAxes": [
+              {
+                "label": "Seconds"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+          },
+          {
+            "id": 2,
+            "title": "Database Query Performance",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.95, rate(db_query_duration_seconds_bucket[5m]))",
+                "legendFormat": "95th percentile - {{operation}}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+          },
+          {
+            "id": 3,
+            "title": "Cache Hit Rate",
+            "type": "singlestat",
+            "targets": [
+              {
+                "expr": "(rate(cache_hits_total[5m]) / (rate(cache_hits_total[5m]) + rate(cache_misses_total[5m]))) * 100",
+                "legendFormat": "Cache Hit Rate %"
+              }
+            ],
+            "thresholds": "70,90",
+            "colorBackground": true,
+            "gridPos": {"h": 4, "w": 6, "x": 0, "y": 8}
+          },
+          {
+            "id": 4,
+            "title": "Thread Pool Usage",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "process_threads",
+                "legendFormat": "{{instance}}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 6, "y": 8}
+          },
+          {
+            "id": 5,
+            "title": "GC Performance",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(process_cpu_seconds_total[5m]) * 100",
+                "legendFormat": "CPU Usage %"
+              },
+              {
+                "expr": "nodejs_heap_size_used_bytes / nodejs_heap_size_total_bytes * 100",
+                "legendFormat": "Heap Usage %"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 18, "y": 8}
+          }
+        ],
+        "time": {
+          "from": "now-1h",
+          "to": "now"
+        },
+        "refresh": "5s"
+      }
+    }

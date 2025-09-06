@@ -1,0 +1,156 @@
+version: '3.8'
+
+services:
+  # Redis for caching and job queue
+  redis:
+    image: redis:7-alpine
+    container_name: save-redis
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - save-network
+    restart: unless-stopped
+
+  # PostgreSQL for analytics and metadata (optional)
+  postgres:
+    image: postgres:15-alpine
+    container_name: save-postgres
+    environment:
+      POSTGRES_DB: save_app
+      POSTGRES_USER: save_user
+      POSTGRES_PASSWORD: save_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - save-network
+    restart: unless-stopped
+
+  # Main application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: save-app
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DATABASE_PATH=/app/storage/save.db
+      - STORAGE_PATH=/app/storage
+      - CACHE_PATH=/app/cache
+      - LOG_PATH=/app/logs
+      - FRONTEND_URL=http://localhost:3000
+      - CDN_BASE_URL=http://localhost:3001/static
+      # External service configurations
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_S3_BUCKET=${AWS_S3_BUCKET:-save-assets}
+      - BRIGHT_DATA_USERNAME=${BRIGHT_DATA_USERNAME:-}
+      - BRIGHT_DATA_PASSWORD=${BRIGHT_DATA_PASSWORD:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    ports:
+      - "3001:3001"
+    volumes:
+      - app_storage:/app/storage
+      - app_cache:/app/cache
+      - app_logs:/app/logs
+      - app_exports:/app/exports
+    networks:
+      - save-network
+    depends_on:
+      - redis
+      - postgres
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Nginx reverse proxy
+  nginx:
+    image: nginx:alpine
+    container_name: save-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - nginx_logs:/var/log/nginx
+    networks:
+      - save-network
+    depends_on:
+      - app
+    restart: unless-stopped
+
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: save-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - save-network
+    restart: unless-stopped
+
+  # Grafana for visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: save-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+    networks:
+      - save-network
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+    driver: local
+  postgres_data:
+    driver: local
+  app_storage:
+    driver: local
+  app_cache:
+    driver: local
+  app_logs:
+    driver: local
+  app_exports:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  nginx_logs:
+    driver: local
+
+networks:
+  save-network:
+    driver: bridge

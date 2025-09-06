@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: save-app
+  labels:
+    name: save-app
+    environment: base

@@ -1,0 +1,40 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: save-app
+
+resources:
+  - ../../base
+
+patchesStrategicMerge:
+  - app-patch.yaml
+  - ingress-patch.yaml
+  - monitoring-patch.yaml
+
+images:
+  - name: save-app
+    newTag: prod-v1.0.0
+
+replicas:
+  - name: save-app
+    count: 3
+  - name: redis
+    count: 1
+  - name: postgres
+    count: 1
+
+configMapGenerator:
+  - name: app-config
+    behavior: merge
+    literals:
+      - aws-region=us-east-1
+      - aws-s3-bucket=save-prod-assets
+      - frontend-url=https://save.example.com
+      - cdn-base-url=https://cdn.save.example.com
+
+commonLabels:
+  environment: production
+  tier: production
+
+commonAnnotations:
+  deployment.kubernetes.io/revision: "1"

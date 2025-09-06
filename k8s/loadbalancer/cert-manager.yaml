@@ -1,0 +1,103 @@
+# Cert-Manager Installation and Configuration
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cert-manager
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    email: admin@save.app
+    privateKeySecretRef:
+      name: letsencrypt-staging
+    solvers:
+    - http01:
+        ingress:
+          class: nginx
+    - dns01:
+        cloudflare:
+          email: admin@save.app
+          apiKeySecretRef:
+            name: cloudflare-api-key
+            key: api-key
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: admin@save.app
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    solvers:
+    - http01:
+        ingress:
+          class: nginx
+    - dns01:
+        cloudflare:
+          email: admin@save.app
+          apiKeySecretRef:
+            name: cloudflare-api-key
+            key: api-key
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: save-tls-cert
+  namespace: save-app
+spec:
+  secretName: save-tls-cert
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+  - save.app
+  - www.save.app
+  - api.save.app
+  - cdn.save.app
+  - static.save.app
+  usages:
+  - digital signature
+  - key encipherment
+  privateKey:
+    algorithm: RSA
+    size: 2048
+    rotationPolicy: Always
+  renewBefore: 720h # 30 days
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cloudflare-api-key
+  namespace: cert-manager
+type: Opaque
+data:
+  api-key: ""  # Base64 encoded Cloudflare API key
+---
+# Wildcard certificate for subdomains
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: save-wildcard-cert
+  namespace: save-app
+spec:
+  secretName: save-wildcard-cert
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+  - "*.save.app"
+  - save.app
+  usages:
+  - digital signature
+  - key encipherment
+  privateKey:
+    algorithm: RSA
+    size: 2048
+  renewBefore: 720h

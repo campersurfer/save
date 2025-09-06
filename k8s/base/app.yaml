@@ -1,0 +1,184 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: save-app
+  namespace: save-app
+  labels:
+    app: save-app
+    component: backend
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: save-app
+  template:
+    metadata:
+      labels:
+        app: save-app
+        component: backend
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3001"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: save-app
+        image: save-app:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3001
+          name: http
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "3001"
+        - name: REDIS_HOST
+          value: "redis"
+        - name: REDIS_PORT
+          value: "6379"
+        - name: DATABASE_PATH
+          value: "/app/storage/save.db"
+        - name: STORAGE_PATH
+          value: "/app/storage"
+        - name: CACHE_PATH
+          value: "/app/cache"
+        - name: LOG_PATH
+          value: "/app/logs"
+        - name: AWS_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: aws-region
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: aws-access-key-id
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: aws-secret-access-key
+        - name: AWS_S3_BUCKET
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: aws-s3-bucket
+        volumeMounts:
+        - name: app-storage
+          mountPath: /app/storage
+        - name: app-cache
+          mountPath: /app/cache
+        - name: app-logs
+          mountPath: /app/logs
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+          readOnlyRootFilesystem: false
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: app-storage
+        persistentVolumeClaim:
+          claimName: app-storage-pvc
+      - name: app-cache
+        emptyDir:
+          sizeLimit: 1Gi
+      - name: app-logs
+        emptyDir:
+          sizeLimit: 500Mi
+      securityContext:
+        fsGroup: 1001
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: save-app
+  namespace: save-app
+  labels:
+    app: save-app
+    component: backend
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3001
+    targetPort: 3001
+    name: http
+  selector:
+    app: save-app
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: app-storage-pvc
+  namespace: save-app
+  labels:
+    app: save-app
+    component: backend
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: standard
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: save-app
+  labels:
+    app: save-app
+    component: backend
+data:
+  aws-region: "us-east-1"
+  aws-s3-bucket: "save-assets"
+  frontend-url: "https://save.example.com"
+  cdn-base-url: "https://cdn.save.example.com"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secrets
+  namespace: save-app
+  labels:
+    app: save-app
+    component: backend
+type: Opaque
+data:
+  # These should be set via external secret management in production
+  aws-access-key-id: ""
+  aws-secret-access-key: ""
+  openai-api-key: ""
+  bright-data-username: ""
+  bright-data-password: ""
