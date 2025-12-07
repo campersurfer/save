@@ -10,6 +10,7 @@ import {
   Alert,
   Linking,
   StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -37,7 +38,7 @@ export default function ArticleDetailScreen() {
   const articleId = route.params?.articleId || route.params?.article?.id;
   
   const { isPlaying, currentArticle, playArticle, pausePlayback, resumePlayback } = useContext(AudioContext);
-  const { articles, markAsRead, deleteArticle } = useContext(ContentContext);
+  const { articles, markAsRead, deleteArticle, refreshArticleContent, isLoading } = useContext(ContentContext);
   
   const [isCurrentlyPlaying, setIsCurrentlyPlaying] = useState(false);
 
@@ -88,6 +89,15 @@ export default function ArticleDetailScreen() {
       }
     } catch (error) {
       Alert.alert('Audio Error', 'Failed to play article');
+    }
+  };
+
+  const handleRefresh = async () => {
+    try {
+      await refreshArticleContent(article.id);
+      Alert.alert('Refreshed', 'Article content has been updated.');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to refresh content.');
     }
   };
 
@@ -180,6 +190,14 @@ export default function ArticleDetailScreen() {
         </TouchableOpacity>
         
         <View style={styles.headerActions}>
+          <TouchableOpacity style={styles.headerButton} onPress={handleRefresh} disabled={isLoading}>
+            {isLoading ? (
+              <ActivityIndicator size="small" color={colors.text.primary} />
+            ) : (
+              <Ionicons name="refresh-outline" size={24} color={colors.text.primary} />
+            )}
+          </TouchableOpacity>
+          
           <TouchableOpacity style={styles.headerButton} onPress={handleShare}>
             <Ionicons name="share-outline" size={24} color={colors.text.primary} />
           </TouchableOpacity>

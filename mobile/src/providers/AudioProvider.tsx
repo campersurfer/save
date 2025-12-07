@@ -206,6 +206,7 @@ export const AudioProvider: React.FC<AudioProviderProps> = ({ children }) => {
         language: speechSettings.current.language,
         pitch: speechSettings.current.pitch,
         rate: speechSettings.current.rate,
+        voice: speechSettings.current.voice,
         onStart: () => {
           if (currentSpeechId.current === speechId) {
             setIsPlaying(true);

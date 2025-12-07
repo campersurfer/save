@@ -13,6 +13,7 @@ interface ContentContextType {
   addNote: (title: string, content: string, imageUrl?: string) => Promise<void>;
   toggleFavorite: (articleId: string) => Promise<void>;
   archiveArticle: (articleId: string) => Promise<void>;
+  refreshArticleContent: (articleId: string) => Promise<void>;
   searchArticles: (query: string) => Article[];
   getUnreadCount: () => number;
   getReadCount: () => number;
@@ -29,6 +30,7 @@ export const ContentContext = createContext<ContentContextType>({
   addNote: async () => {},
   toggleFavorite: async () => {},
   archiveArticle: async () => {},
+  refreshArticleContent: async () => {},
   searchArticles: () => [],
   getUnreadCount: () => 0,
   getReadCount: () => 0,
@@ -243,6 +245,41 @@ export const ContentProvider: React.FC<ContentProviderProps> = ({ children }) =>
     }
   }, [articles]);
 
+  const refreshArticleContent = useCallback(async (articleId: string) => {
+    setIsLoading(true);
+    try {
+      const article = articles.find(a => a.id === articleId);
+      if (!article || !article.url) return;
+
+      const extractedContent = await ArticleExtractor.extractFromUrl(article.url);
+      
+      const updatedArticle: Partial<Article> = {
+        title: extractedContent.title,
+        content: extractedContent.content,
+        author: extractedContent.author,
+        imageUrl: extractedContent.imageUrl,
+        readTime: extractedContent.readTime,
+        mood: ArticleExtractor.generateMood(extractedContent.content, extractedContent.title),
+        tags: [...new Set([...(article.tags || []), ...ArticleExtractor.extractTags(extractedContent.content, extractedContent.title)])],
+      };
+
+      await StorageService.updateArticle(articleId, updatedArticle);
+      
+      setArticles(prevArticles =>
+        prevArticles.map(a =>
+          a.id === articleId
+            ? { ...a, ...updatedArticle }
+            : a
+        )
+      );
+    } catch (err) {
+      console.error('Failed to refresh article:', err);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [articles]);
+
   const searchArticles = useCallback((query: string): Article[] => {
     if (!query.trim()) return articles;
     
@@ -274,6 +311,7 @@ export const ContentProvider: React.FC<ContentProviderProps> = ({ children }) =>
     addNote,
     toggleFavorite,
     archiveArticle,
+    refreshArticleContent,
     searchArticles,
     getUnreadCount,
     getReadCount,
