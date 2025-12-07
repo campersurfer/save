@@ -210,7 +210,9 @@ export default function ArticleDetailScreen() {
           </View>
 
           {/* Article Title */}
-          <Text style={[styles.articleTitle, { color: colors.text.primary }]}>{article.title}</Text>
+          <TouchableOpacity onPress={handleOpenOriginal}>
+            <Text style={[styles.articleTitle, { color: colors.text.primary }]}>{article.title}</Text>
+          </TouchableOpacity>
 
           {/* Author & Reading Time */}
           <View style={styles.articleSubMeta}>

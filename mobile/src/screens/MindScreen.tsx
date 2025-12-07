@@ -38,7 +38,7 @@ const CARD_WIDTH = (SCREEN_WIDTH - (COLUMNS + 1) * CARD_MARGIN) / COLUMNS;
 type TypeFilter = 'all' | 'article' | 'tweet' | 'instagram' | 'tiktok' | 'note';
 
 export default function MindScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const { colors } = useTheme();
   const { articles, isLoading, refreshArticles, addNote } = useContext(ContentContext);
   const [searchQuery, setSearchQuery] = useState('');
@@ -430,7 +430,7 @@ export default function MindScreen() {
                 item={item}
                 width={itemWidth}
                 onPress={() => {
-                  // Handle item press - could navigate to detail or expand
+                  navigation.navigate('ArticleDetail', { articleId: item.id });
                 }}
               />
             )}

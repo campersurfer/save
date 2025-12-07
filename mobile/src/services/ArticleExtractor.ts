@@ -106,23 +106,36 @@ export class ArticleExtractor {
       'main article',
       '[role="main"] article',
       '.content article',
+      'article',
     ];
 
     for (const selector of contentSelectors) {
       const contentArea = root.querySelector(selector);
       if (contentArea) {
+        // Try to extract paragraphs from this specific area first
+        const paragraphs = contentArea.querySelectorAll('p');
+        if (paragraphs.length > 0) {
+          return this.formatParagraphs(paragraphs);
+        }
+        // Fallback to text content if no P tags (cleaned less aggressively)
         return this.cleanContent(contentArea);
       }
     }
 
-    // Fallback: extract all paragraphs
+    // Fallback: extract all paragraphs from root
     const paragraphs = root.querySelectorAll('p');
-    const content = paragraphs
-      .map((p: any) => p.text?.trim())
-      .filter((text: string) => text && text.length > 50)
-      .join('\n\n');
+    if (paragraphs.length > 0) {
+      return this.formatParagraphs(paragraphs);
+    }
 
-    return content || 'Content could not be extracted from this article.';
+    return 'Content could not be extracted from this article.';
+  }
+
+  private static formatParagraphs(paragraphs: any[]): string {
+    return paragraphs
+      .map((p: any) => p.text?.trim())
+      .filter((text: string) => text && text.length > 20) // Filter very short lines/empty paragraphs
+      .join('\n\n');
   }
 
   private static extractAuthor(root: any): string | undefined {
@@ -220,8 +233,8 @@ export class ArticleExtractor {
     const textContent = contentArea.text || '';
     
     return textContent
-      .replace(/\s+/g, ' ')
-      .replace(/\n\s*\n\s*\n/g, '\n\n')
+      .replace(/[ \t]+/g, ' ') // Collapse spaces/tabs but not newlines
+      .replace(/(\n\s*){3,}/g, '\n\n') // Limit consecutive newlines
       .trim();
   }
 
