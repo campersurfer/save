@@ -16,27 +16,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
 import { AudioContext } from '../providers/AudioProvider';
 import { ContentContext } from '../providers/ContentProvider';
-import { Colors, Typography, Spacing } from '../styles/BauhausDesign';
-
-interface Article {
-  id: string;
-  title: string;
-  author?: string;
-  content: string;
-  url: string;
-  imageUrl?: string;
-  readTime?: number;
-  savedAt: Date;
-  readAt?: Date;
-  dominantColor?: string;
-  mood?: 'light' | 'dark' | 'warm' | 'cool' | 'neutral';
-  type: 'article' | 'tweet' | 'instagram' | 'tiktok';
-  tags?: string[];
-}
+import { Typography, Spacing, Geometry, Shadows } from '../styles/BauhausDesign';
+import { useTheme } from '../providers/ThemeProvider';
 
 type RootStackParamList = {
   ArticleDetail: {
-    article: Article;
+    articleId?: string;
+    article?: any; // Legacy support for old navigation
   };
 };
 
@@ -45,23 +31,51 @@ type ArticleDetailRouteProp = RouteProp<RootStackParamList, 'ArticleDetail'>;
 export default function ArticleDetailScreen() {
   const route = useRoute<ArticleDetailRouteProp>();
   const navigation = useNavigation();
-  const { article } = route.params;
+  const { colors, isDark } = useTheme();
+  
+  // Support both new (articleId) and legacy (article) params
+  const articleId = route.params?.articleId || route.params?.article?.id;
   
   const { isPlaying, currentArticle, playArticle, pausePlayback, resumePlayback } = useContext(AudioContext);
-  const { markAsRead, deleteArticle } = useContext(ContentContext);
+  const { articles, markAsRead, deleteArticle } = useContext(ContentContext);
   
   const [isCurrentlyPlaying, setIsCurrentlyPlaying] = useState(false);
 
-  useEffect(() => {
-    // Mark article as read when screen is opened
-    if (!article.readAt) {
-      markAsRead(article.id);
-    }
-  }, [article.id, article.readAt, markAsRead]);
+  // Look up article from context by ID
+  const article = articleId ? articles.find(a => a.id === articleId) : null;
 
   useEffect(() => {
-    setIsCurrentlyPlaying(isPlaying && currentArticle?.id === article.id);
-  }, [isPlaying, currentArticle, article.id]);
+    // Mark article as read when screen is opened
+    if (article && !article.readAt) {
+      markAsRead(article.id);
+    }
+  }, [article, markAsRead]);
+
+  useEffect(() => {
+    if (article) {
+      setIsCurrentlyPlaying(isPlaying && currentArticle?.id === article.id);
+    }
+  }, [isPlaying, currentArticle, article]);
+
+  // Handle case where article is not found
+  if (!article) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.header, { borderBottomColor: colors.surface }]}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle-outline" size={64} color={colors.text.tertiary} />
+          <Text style={[styles.errorText, { color: colors.text.tertiary }]}>Article not found</Text>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.errorButton, { backgroundColor: colors.primary.blue }]}>
+            <Text style={[styles.errorButtonText, { color: colors.text.inverse }]}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const handlePlayPause = async () => {
     try {
@@ -133,12 +147,12 @@ export default function ArticleDetailScreen() {
     if (article.dominantColor) return article.dominantColor;
     
     switch (article.mood) {
-      case 'light': return Colors.primary.yellow;
-      case 'dark': return '#4A4A4A';
-      case 'warm': return '#FF6B6B';
-      case 'cool': return '#4ECDC4';
+      case 'light': return colors.mood.light;
+      case 'dark': return colors.mood.dark;
+      case 'warm': return colors.mood.warm;
+      case 'cool': return colors.mood.cool;
       case 'neutral':
-      default: return Colors.primary.blue;
+      default: return colors.mood.neutral;
     }
   };
 
@@ -153,25 +167,25 @@ export default function ArticleDetailScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.dark.background} />
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={colors.background} />
       
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { borderBottomColor: colors.surface }]}>
         <TouchableOpacity 
           style={styles.headerButton} 
           onPress={() => navigation.goBack()}
         >
-          <Ionicons name="arrow-back" size={24} color={Colors.text.primary} />
+          <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
         </TouchableOpacity>
         
         <View style={styles.headerActions}>
           <TouchableOpacity style={styles.headerButton} onPress={handleShare}>
-            <Ionicons name="share-outline" size={24} color={Colors.text.primary} />
+            <Ionicons name="share-outline" size={24} color={colors.text.primary} />
           </TouchableOpacity>
           
           <TouchableOpacity style={styles.headerButton} onPress={handleDelete}>
-            <Ionicons name="trash-outline" size={24} color={Colors.semantic.error} />
+            <Ionicons name="trash-outline" size={24} color={colors.semantic.error} />
           </TouchableOpacity>
         </View>
       </View>
@@ -179,11 +193,11 @@ export default function ArticleDetailScreen() {
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Article Image */}
         {article.imageUrl && (
-          <Image source={{ uri: article.imageUrl }} style={styles.articleImage} />
+          <Image source={{ uri: article.imageUrl }} style={[styles.articleImage, { backgroundColor: colors.surface }]} />
         )}
 
         {/* Article Header Info */}
-        <View style={styles.articleHeader}>
+        <View style={[styles.articleHeader, { borderBottomColor: colors.surface }]}>
           <View style={styles.articleMeta}>
             <View style={styles.typeContainer}>
               <Ionicons name={getTypeIcon()} size={16} color={getMoodColor()} />
@@ -192,20 +206,20 @@ export default function ArticleDetailScreen() {
               </Text>
             </View>
             
-            <Text style={styles.dateText}>{formatDate(article.savedAt)}</Text>
+            <Text style={[styles.dateText, { color: colors.text.tertiary }]}>{formatDate(article.savedAt)}</Text>
           </View>
 
           {/* Article Title */}
-          <Text style={styles.articleTitle}>{article.title}</Text>
+          <Text style={[styles.articleTitle, { color: colors.text.primary }]}>{article.title}</Text>
 
           {/* Author & Reading Time */}
           <View style={styles.articleSubMeta}>
             {article.author && (
-              <Text style={styles.authorText}>By {article.author}</Text>
+              <Text style={[styles.authorText, { color: colors.text.secondary }]}>By {article.author}</Text>
             )}
             
             {article.readTime && (
-              <Text style={styles.readTimeText}>
+              <Text style={[styles.readTimeText, { color: colors.text.tertiary }]}>
                 {article.readTime} min read
               </Text>
             )}
@@ -225,13 +239,18 @@ export default function ArticleDetailScreen() {
 
         {/* Article Content */}
         <View style={styles.contentContainer}>
-          <Text style={styles.articleContent}>{article.content}</Text>
+          <Text style={[styles.articleContent, { color: colors.text.secondary }]}>
+            {article.content || 'No content available to read.'}
+          </Text>
         </View>
 
         {/* Source Link */}
-        <TouchableOpacity style={styles.sourceButton} onPress={handleOpenOriginal}>
-          <Ionicons name="open-outline" size={20} color={Colors.primary.blue} />
-          <Text style={styles.sourceButtonText}>Read Original Article</Text>
+        <TouchableOpacity 
+          style={[styles.sourceButton, { backgroundColor: colors.surface, borderColor: colors.primary.blue }]} 
+          onPress={handleOpenOriginal}
+        >
+          <Ionicons name="open-outline" size={20} color={colors.primary.blue} />
+          <Text style={[styles.sourceButtonText, { color: colors.primary.blue }]}>Read Original Article</Text>
         </TouchableOpacity>
 
         {/* Bottom padding for audio player */}
@@ -239,7 +258,14 @@ export default function ArticleDetailScreen() {
       </ScrollView>
 
       {/* Floating Audio Control */}
-      <View style={styles.audioControl}>
+      <View style={[
+        styles.audioControl, 
+        { 
+          backgroundColor: colors.surface, 
+          borderColor: colors.surfaceHigh,
+          shadowColor: colors.text.primary
+        }
+      ]}>
         <TouchableOpacity 
           style={[styles.playButton, { backgroundColor: getMoodColor() }]} 
           onPress={handlePlayPause}
@@ -247,15 +273,15 @@ export default function ArticleDetailScreen() {
           <Ionicons 
             name={isCurrentlyPlaying ? "pause" : "play"} 
             size={24} 
-            color={Colors.primary.white} 
+            color={colors.primary.white} 
           />
         </TouchableOpacity>
         
         <View style={styles.audioInfo}>
-          <Text style={styles.audioTitle} numberOfLines={1}>
+          <Text style={[styles.audioTitle, { color: colors.text.tertiary }]} numberOfLines={1}>
             {isCurrentlyPlaying ? 'Now Playing' : 'Listen to Article'}
           </Text>
-          <Text style={styles.audioSubtitle} numberOfLines={1}>
+          <Text style={[styles.audioSubtitle, { color: colors.text.primary }]} numberOfLines={1}>
             {article.title}
           </Text>
         </View>
@@ -267,7 +293,6 @@ export default function ArticleDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.dark.background,
   },
   header: {
     flexDirection: 'row',
@@ -276,11 +301,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.dark.surface,
   },
   headerButton: {
     padding: Spacing.sm,
-    borderRadius: 8,
+    borderRadius: Geometry.borderRadius.medium,
   },
   headerActions: {
     flexDirection: 'row',
@@ -291,12 +315,10 @@ const styles = StyleSheet.create({
   articleImage: {
     width: '100%',
     height: 200,
-    backgroundColor: Colors.dark.surface,
   },
   articleHeader: {
     padding: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.dark.surface,
   },
   articleMeta: {
     flexDirection: 'row',
@@ -315,14 +337,13 @@ const styles = StyleSheet.create({
   },
   dateText: {
     fontSize: Typography.fontSize.small,
-    color: Colors.text.tertiary,
   },
   articleTitle: {
     fontSize: Typography.fontSize.h2,
     fontWeight: Typography.fontWeight.bold,
-    color: Colors.text.primary,
     lineHeight: Typography.fontSize.h2 * 1.3,
     marginBottom: Spacing.sm,
+    fontFamily: Typography.fontFamily.heading,
   },
   articleSubMeta: {
     flexDirection: 'row',
@@ -332,12 +353,10 @@ const styles = StyleSheet.create({
   },
   authorText: {
     fontSize: Typography.fontSize.caption,
-    color: Colors.text.secondary,
     fontStyle: 'italic',
   },
   readTimeText: {
     fontSize: Typography.fontSize.caption,
-    color: Colors.text.tertiary,
   },
   tagsContainer: {
     flexDirection: 'row',
@@ -346,7 +365,7 @@ const styles = StyleSheet.create({
   },
   tag: {
     borderWidth: 1,
-    borderRadius: 16,
+    borderRadius: Geometry.borderRadius.large,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 4,
     marginRight: Spacing.xs,
@@ -361,8 +380,8 @@ const styles = StyleSheet.create({
   },
   articleContent: {
     fontSize: Typography.fontSize.body,
-    color: Colors.text.secondary,
     lineHeight: Typography.fontSize.body * Typography.lineHeight.relaxed,
+    fontFamily: Typography.fontFamily.body,
   },
   sourceButton: {
     flexDirection: 'row',
@@ -370,14 +389,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     margin: Spacing.md,
     padding: Spacing.md,
-    backgroundColor: Colors.dark.surface,
-    borderRadius: 8,
+    borderRadius: Geometry.borderRadius.medium,
     borderWidth: 1,
-    borderColor: Colors.primary.blue,
   },
   sourceButtonText: {
     fontSize: Typography.fontSize.body,
-    color: Colors.primary.blue,
     fontWeight: Typography.fontWeight.medium,
     marginLeft: Spacing.sm,
   },
@@ -391,14 +407,13 @@ const styles = StyleSheet.create({
     right: Spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.dark.surface,
     borderRadius: 12,
     padding: Spacing.md,
     elevation: 8,
-    shadowColor: Colors.dark.background,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
+    borderWidth: 1,
   },
   playButton: {
     width: 48,
@@ -413,13 +428,34 @@ const styles = StyleSheet.create({
   },
   audioTitle: {
     fontSize: Typography.fontSize.caption,
-    color: Colors.text.tertiary,
     fontWeight: Typography.fontWeight.medium,
   },
   audioSubtitle: {
     fontSize: Typography.fontSize.body,
-    color: Colors.text.primary,
     fontWeight: Typography.fontWeight.medium,
     marginTop: 2,
+  },
+  backButton: {
+    padding: Spacing.sm,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.xl,
+  },
+  errorText: {
+    fontSize: Typography.fontSize.h3,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.lg,
+  },
+  errorButton: {
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
+    borderRadius: Geometry.borderRadius.medium,
+  },
+  errorButtonText: {
+    fontSize: Typography.fontSize.body,
+    fontWeight: Typography.fontWeight.semibold,
   },
 });

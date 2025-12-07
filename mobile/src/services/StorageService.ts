@@ -12,8 +12,10 @@ export interface Article {
   readAt?: Date;
   dominantColor?: string;
   mood?: 'light' | 'dark' | 'warm' | 'cool' | 'neutral';
-  type: 'article' | 'tweet' | 'instagram' | 'tiktok';
+  type: 'article' | 'tweet' | 'instagram' | 'tiktok' | 'note';
   tags?: string[];
+  isNote?: boolean; // Quick notes created directly in the app
+  isFavorite?: boolean;
 }
 
 export class StorageService {
@@ -164,6 +166,7 @@ export class StorageService {
     speechRate: number;
     speechPitch: number;
     speechLanguage: string;
+    speechVoice?: string;
     autoPlay: boolean;
     skipReadArticles: boolean;
   }> {
@@ -198,6 +201,7 @@ export class StorageService {
     speechRate: number;
     speechPitch: number;
     speechLanguage: string;
+    speechVoice?: string;
     autoPlay: boolean;
     skipReadArticles: boolean;
   }>): Promise<void> {

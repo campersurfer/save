@@ -1,14 +1,16 @@
-import React from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 // Import design system
-import { Colors, Typography, Components } from './src/styles/BauhausDesign';
+import { Typography, Components } from './src/styles/BauhausDesign';
 
 // Import screens
 import FeedScreen from './src/screens/FeedScreen';
@@ -16,15 +18,19 @@ import MindScreen from './src/screens/MindScreen';
 import AddScreen from './src/screens/AddScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import ArticleDetailScreen from './src/screens/ArticleDetailScreen';
+import OnboardingScreen from './src/screens/OnboardingScreen';
 
 // Import providers
 import { AudioProvider } from './src/providers/AudioProvider';
 import { ContentProvider } from './src/providers/ContentProvider';
+import { ThemeProvider, ThemeContext, useTheme } from './src/providers/ThemeProvider';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
 function MainTabNavigator() {
+  const { colors, isDark } = useTheme();
+  
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -45,17 +51,22 @@ function MainTabNavigator() {
 
           return <Ionicons name={iconName} size={size} color={color} />;
         },
-        tabBarActiveTintColor: Colors.primary.blue,
-        tabBarInactiveTintColor: Colors.text.tertiary,
+        tabBarActiveTintColor: colors.primary.blue,
+        tabBarInactiveTintColor: colors.text.tertiary,
         tabBarStyle: {
-          ...Components.tabBar,
+          height: 90,
+          paddingTop: 8,
+          paddingBottom: 8,
+          backgroundColor: colors.background,
+          borderTopColor: colors.surface,
+          borderTopWidth: 1,
         },
         headerStyle: {
-          backgroundColor: Colors.dark.background,
-          borderBottomColor: Colors.dark.surface,
+          backgroundColor: colors.background,
+          borderBottomColor: colors.surface,
           borderBottomWidth: 1,
         },
-        headerTintColor: Colors.text.primary,
+        headerTintColor: colors.text.primary,
         headerTitleStyle: {
           fontFamily: Typography.fontFamily.heading,
           fontWeight: Typography.fontWeight.semibold,
@@ -68,7 +79,7 @@ function MainTabNavigator() {
         component={FeedScreen}
         options={{
           title: 'Feed',
-          headerTitle: 'Save Feed',
+          headerTitle: 'Nook Feed',
         }}
       />
       <Tab.Screen 
@@ -99,38 +110,104 @@ function MainTabNavigator() {
   );
 }
 
+// Inner app component that can use theme context
+function AppContent() {
+  const { colors, isDark } = useTheme();
+  const [isLoading, setIsLoading] = useState(true);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  useEffect(() => {
+    checkOnboardingStatus();
+  }, []);
+
+  const checkOnboardingStatus = async () => {
+    try {
+      const hasOnboarded = await AsyncStorage.getItem('@has_onboarded');
+      setShowOnboarding(hasOnboarded !== 'true');
+    } catch (error) {
+      console.error('Error checking onboarding status:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleOnboardingComplete = async () => {
+    try {
+      await AsyncStorage.setItem('@has_onboarded', 'true');
+      setShowOnboarding(false);
+    } catch (error) {
+      console.error('Error saving onboarding status:', error);
+    }
+  };
+
+  // Create custom navigation theme
+  const navigationTheme = {
+    dark: isDark,
+    colors: {
+      primary: colors.primary.blue,
+      background: colors.background,
+      card: colors.surface,
+      text: colors.text.primary,
+      border: colors.border,
+      notification: colors.primary.blue,
+    },
+    fonts: isDark ? DarkTheme.fonts : DefaultTheme.fonts,
+  };
+
+  if (isLoading) {
+    return (
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary.blue} />
+      </View>
+    );
+  }
+
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <NavigationContainer theme={navigationTheme}>
+        {showOnboarding ? (
+          <OnboardingScreen onComplete={handleOnboardingComplete} />
+        ) : (
+          <Stack.Navigator
+            screenOptions={{
+              headerShown: false,
+            }}
+          >
+            <Stack.Screen name="MainTabs" component={MainTabNavigator} />
+            <Stack.Screen 
+              name="ArticleDetail" 
+              component={ArticleDetailScreen}
+              options={{
+                headerShown: false,
+                presentation: 'modal',
+              }}
+            />
+          </Stack.Navigator>
+        )}
+        <StatusBar style={isDark ? 'light' : 'dark'} backgroundColor={colors.background} />
+      </NavigationContainer>
+    </GestureHandlerRootView>
+  );
+}
+
 export default function App() {
   return (
     <SafeAreaProvider>
-      <ContentProvider>
-        <AudioProvider>
-          <NavigationContainer>
-            <Stack.Navigator
-              screenOptions={{
-                headerShown: false,
-              }}
-            >
-              <Stack.Screen name="MainTabs" component={MainTabNavigator} />
-              <Stack.Screen 
-                name="ArticleDetail" 
-                component={ArticleDetailScreen}
-                options={{
-                  headerShown: false,
-                  presentation: 'modal',
-                }}
-              />
-            </Stack.Navigator>
-          </NavigationContainer>
-          <StatusBar style="light" backgroundColor={Colors.dark.background} />
-        </AudioProvider>
-      </ContentProvider>
+      <ThemeProvider>
+        <ContentProvider>
+          <AudioProvider>
+            <AppContent />
+          </AudioProvider>
+        </ContentProvider>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  loadingContainer: {
     flex: 1,
-    backgroundColor: Colors.dark.background,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

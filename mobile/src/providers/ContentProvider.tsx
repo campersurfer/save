@@ -10,6 +10,9 @@ interface ContentContextType {
   markAsRead: (articleId: string) => void;
   deleteArticle: (articleId: string) => void;
   addArticle: (url: string) => Promise<void>;
+  addNote: (title: string, content: string, imageUrl?: string) => Promise<void>;
+  toggleFavorite: (articleId: string) => Promise<void>;
+  archiveArticle: (articleId: string) => Promise<void>;
   searchArticles: (query: string) => Article[];
   getUnreadCount: () => number;
   getReadCount: () => number;
@@ -23,6 +26,9 @@ export const ContentContext = createContext<ContentContextType>({
   markAsRead: () => {},
   deleteArticle: () => {},
   addArticle: async () => {},
+  addNote: async () => {},
+  toggleFavorite: async () => {},
+  archiveArticle: async () => {},
   searchArticles: () => [],
   getUnreadCount: () => 0,
   getReadCount: () => 0,
@@ -31,6 +37,36 @@ export const ContentContext = createContext<ContentContextType>({
 interface ContentProviderProps {
   children: React.ReactNode;
 }
+
+// Helper function to determine mood from text (outside component to avoid hooks issues)
+const determineMoodFromText = (text: string): 'light' | 'dark' | 'warm' | 'cool' | 'neutral' => {
+  const lowerText = text.toLowerCase();
+  if (lowerText.includes('happy') || lowerText.includes('joy') || lowerText.includes('excited') || lowerText.includes('!')) {
+    return 'warm';
+  }
+  if (lowerText.includes('sad') || lowerText.includes('worry') || lowerText.includes('concern')) {
+    return 'cool';
+  }
+  if (lowerText.includes('idea') || lowerText.includes('thought') || lowerText.includes('remember')) {
+    return 'light';
+  }
+  return 'neutral';
+};
+
+// Helper function to extract tags from text (outside component to avoid hooks issues)
+const extractTagsFromText = (text: string): string[] => {
+  const tags: string[] = [];
+  // Extract hashtags
+  const hashtagMatches = text.match(/#\w+/g);
+  if (hashtagMatches) {
+    tags.push(...hashtagMatches.map(tag => tag.slice(1)));
+  }
+  // Add 'note' tag
+  if (!tags.includes('note')) {
+    tags.push('note');
+  }
+  return tags.slice(0, 5); // Limit to 5 tags
+};
 
 export const ContentProvider: React.FC<ContentProviderProps> = ({ children }) => {
   const [articles, setArticles] = useState<Article[]>([]);
@@ -129,6 +165,84 @@ export const ContentProvider: React.FC<ContentProviderProps> = ({ children }) =>
     }
   }, []);
 
+  const addNote = useCallback(async (title: string, content: string, imageUrl?: string) => {
+    try {
+      // Determine mood based on content length and keywords
+      const mood = determineMoodFromText(content);
+      
+      // Create new note object
+      const newNote: Article = {
+        id: Date.now().toString(),
+        title: title || 'Quick Note',
+        content,
+        url: '', // Notes don't have URLs
+        imageUrl,
+        savedAt: new Date(),
+        type: 'note',
+        isNote: true,
+        mood,
+        tags: extractTagsFromText(content),
+      };
+
+      // Save to storage
+      await StorageService.saveArticle(newNote);
+      
+      // Update local state
+      setArticles(prevArticles => [newNote, ...prevArticles]);
+      
+    } catch (err) {
+      console.error('Failed to add note:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to save note';
+      setError(errorMessage);
+      throw new Error(errorMessage);
+    }
+  }, []);
+
+  const toggleFavorite = useCallback(async (articleId: string) => {
+    try {
+      const article = articles.find(a => a.id === articleId);
+      if (!article) return;
+      
+      const newStatus = !article.isFavorite;
+      await StorageService.updateArticle(articleId, { isFavorite: newStatus });
+      
+      setArticles(prevArticles =>
+        prevArticles.map(a =>
+          a.id === articleId
+            ? { ...a, isFavorite: newStatus }
+            : a
+        )
+      );
+    } catch (err) {
+      console.error('Failed to toggle favorite:', err);
+      setError('Failed to update article');
+    }
+  }, [articles]);
+
+  const archiveArticle = useCallback(async (articleId: string) => {
+    try {
+      const article = articles.find(a => a.id === articleId);
+      if (!article) return;
+      
+      const currentTags = article.tags || [];
+      if (!currentTags.includes('archive')) {
+        const newTags = [...currentTags, 'archive'];
+        await StorageService.updateArticle(articleId, { tags: newTags });
+        
+        setArticles(prevArticles =>
+          prevArticles.map(a =>
+            a.id === articleId
+              ? { ...a, tags: newTags }
+              : a
+          )
+        );
+      }
+    } catch (err) {
+      console.error('Failed to archive article:', err);
+      setError('Failed to update article');
+    }
+  }, [articles]);
+
   const searchArticles = useCallback((query: string): Article[] => {
     if (!query.trim()) return articles;
     
@@ -157,6 +271,9 @@ export const ContentProvider: React.FC<ContentProviderProps> = ({ children }) =>
     markAsRead,
     deleteArticle,
     addArticle,
+    addNote,
+    toggleFavorite,
+    archiveArticle,
     searchArticles,
     getUnreadCount,
     getReadCount,

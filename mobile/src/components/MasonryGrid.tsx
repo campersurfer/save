@@ -98,26 +98,13 @@ export function MasonryGrid<T>({
   );
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.contentContainer}
-      showsVerticalScrollIndicator={false}
-      scrollEventThrottle={16}
-    >
-      <View style={styles.grid}>
-        {columns.map(renderColumn)}
-      </View>
-    </ScrollView>
+    <View style={styles.grid}>
+      {columns.map(renderColumn)}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  contentContainer: {
-    paddingBottom: 100, // Extra space for audio player
-  },
   grid: {
     flexDirection: 'row',
     justifyContent: 'space-between',

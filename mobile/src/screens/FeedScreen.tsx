@@ -1,4 +1,4 @@
-import React, { useState, useContext, useEffect } from 'react';
+import React, { useState, useContext, useEffect, useLayoutEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -15,25 +15,14 @@ import { ContentContext } from '../providers/ContentProvider';
 import { AudioContext } from '../providers/AudioProvider';
 import { ArticleCard } from '../components/ArticleCard';
 import { AudioPlayer } from '../components/AudioPlayer';
-import { Colors, Typography, Spacing } from '../styles/BauhausDesign';
-
-interface Article {
-  id: string;
-  title: string;
-  author?: string;
-  content: string;
-  url: string;
-  imageUrl?: string;
-  readTime?: number;
-  savedAt: Date;
-  readAt?: Date;
-  dominantColor?: string;
-  type: 'article' | 'tweet' | 'instagram' | 'tiktok';
-}
+import { Typography, Spacing } from '../styles/BauhausDesign';
+import { Article } from '../services/StorageService';
+import { useTheme } from '../providers/ThemeProvider';
 
 export default function FeedScreen() {
   const navigation = useNavigation();
-  const { articles, isLoading, refreshArticles, markAsRead } = useContext(ContentContext);
+  const { colors } = useTheme();
+  const { articles, isLoading, refreshArticles, markAsRead, archiveArticle } = useContext(ContentContext);
   const { 
     isPlaying, 
     currentArticle, 
@@ -47,14 +36,35 @@ export default function FeedScreen() {
   const [selectedArticles, setSelectedArticles] = useState<string[]>([]);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
 
-  const unreadArticles = articles.filter(article => !article.readAt);
+  const displayArticles = useMemo(() => {
+    return articles.filter(article => 
+      !article.tags?.includes('archive') && 
+      !article.isNote
+    );
+  }, [articles]);
+
+  const unreadArticles = displayArticles.filter(article => !article.readAt);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerTitle: 'Nook Feed',
+      headerRight: () => (
+        <TouchableOpacity 
+          onPress={() => (navigation as any).navigate('Add')} 
+          style={{ marginRight: 16 }}
+        >
+          <Ionicons name="add" size={28} color={colors.primary.blue} />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, colors]);
 
   const handleArticlePress = (article: Article) => {
     if (isSelectionMode) {
       toggleSelection(article.id);
     } else {
-      // Navigate to article detail screen
-      (navigation as any).navigate('ArticleDetail', { article });
+      // Navigate to article detail screen - pass ID only to avoid serialization issues
+      (navigation as any).navigate('ArticleDetail', { articleId: article.id });
     }
   };
 
@@ -66,8 +76,8 @@ export default function FeedScreen() {
   const toggleSelection = (articleId: string) => {
     setSelectedArticles(prev => 
       prev.includes(articleId)
-        ? prev.filter(id => id !== articleId)
-        : [...prev, articleId]
+      ? prev.filter(id => id !== articleId)
+      : [...prev, articleId]
     );
   };
 
@@ -92,7 +102,7 @@ export default function FeedScreen() {
 
   const archiveSelected = () => {
     selectedArticles.forEach(articleId => {
-      markAsRead(articleId);
+      archiveArticle(articleId);
     });
     setIsSelectionMode(false);
     setSelectedArticles([]);
@@ -111,21 +121,21 @@ export default function FeedScreen() {
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
-      <Ionicons name="reader-outline" size={80} color="#6B6B70" />
-      <Text style={styles.emptyTitle}>No Articles Yet</Text>
-      <Text style={styles.emptyText}>
+      <Ionicons name="reader-outline" size={80} color={colors.text.tertiary} />
+      <Text style={[styles.emptyTitle, { color: colors.text.primary }]}>No Articles Yet</Text>
+      <Text style={[styles.emptyText, { color: colors.text.tertiary }]}>
         Save your first article using the Add tab or Share Extension
       </Text>
     </View>
   );
 
   const renderHeader = () => (
-    <View style={styles.header}>
+    <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.surface }]}>
       <View style={styles.headerContent}>
-        <Text style={styles.queueCount}>
+        <Text style={[styles.queueCount, { color: colors.text.primary }]}>
           {unreadArticles.length} articles in queue
         </Text>
-        <Text style={styles.readTime}>
+        <Text style={[styles.readTime, { color: colors.text.tertiary }]}>
           ~{Math.round(unreadArticles.reduce((total, article) => 
             total + (article.readTime || 3), 0))} min read
         </Text>
@@ -133,20 +143,23 @@ export default function FeedScreen() {
       
       {unreadArticles.length > 0 && (
         <TouchableOpacity 
-          style={styles.playAllButton}
+          style={[styles.playAllButton, { 
+            backgroundColor: colors.surface,
+            borderColor: colors.primary.blue 
+          }]}
           onPress={startContinuousPlayback}
         >
-          <Ionicons name="play-circle" size={24} color="#0066FF" />
-          <Text style={styles.playAllText}>Play All</Text>
+          <Ionicons name="play-circle" size={24} color={colors.primary.blue} />
+          <Text style={[styles.playAllText, { color: colors.primary.blue }]}>Play All</Text>
         </TouchableOpacity>
       )}
     </View>
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <FlatList
-        data={articles}
+        data={displayArticles}
         renderItem={renderArticle}
         keyExtractor={(item) => item.id}
         ListHeaderComponent={renderHeader}
@@ -155,8 +168,8 @@ export default function FeedScreen() {
           <RefreshControl
             refreshing={isLoading}
             onRefresh={refreshArticles}
-            tintColor={Colors.primary.blue}
-            colors={[Colors.primary.blue]}
+            tintColor={colors.primary.blue}
+            colors={[colors.primary.blue]}
           />
         }
         contentContainerStyle={articles.length === 0 ? styles.emptyContainer : undefined}
@@ -165,32 +178,32 @@ export default function FeedScreen() {
 
       {/* Selection Mode Actions */}
       {isSelectionMode && (
-        <View style={styles.selectionActions}>
+        <View style={[styles.selectionActions, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
           <TouchableOpacity 
-            style={styles.actionButton}
+            style={[styles.actionButton, { backgroundColor: colors.primary.blue }]}
             onPress={playSelectedArticles}
           >
-            <Ionicons name="play" size={20} color="#FFFFFF" />
-            <Text style={styles.actionText}>Play</Text>
+            <Ionicons name="play" size={20} color={colors.text.inverse} />
+            <Text style={[styles.actionText, { color: colors.text.inverse }]}>Play</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
-            style={styles.actionButton}
+            style={[styles.actionButton, { backgroundColor: colors.primary.blue }]}
             onPress={archiveSelected}
           >
-            <Ionicons name="archive" size={20} color="#FFFFFF" />
-            <Text style={styles.actionText}>Archive</Text>
+            <Ionicons name="archive" size={20} color={colors.text.inverse} />
+            <Text style={[styles.actionText, { color: colors.text.inverse }]}>Archive</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
-            style={[styles.actionButton, styles.cancelButton]}
+            style={[styles.actionButton, styles.cancelButton, { backgroundColor: colors.text.tertiary }]}
             onPress={() => {
               setIsSelectionMode(false);
               setSelectedArticles([]);
             }}
           >
-            <Ionicons name="close" size={20} color="#FFFFFF" />
-            <Text style={styles.actionText}>Cancel</Text>
+            <Ionicons name="close" size={20} color={colors.text.inverse} />
+            <Text style={[styles.actionText, { color: colors.text.inverse }]}>Cancel</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -204,7 +217,6 @@ export default function FeedScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.dark.background,
   },
   emptyContainer: {
     flex: 1,
@@ -212,9 +224,7 @@ const styles = StyleSheet.create({
   },
   header: {
     padding: Spacing.md,
-    backgroundColor: Colors.dark.background,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.dark.surface,
   },
   headerContent: {
     marginBottom: 12,
@@ -222,25 +232,20 @@ const styles = StyleSheet.create({
   queueCount: {
     fontSize: Typography.fontSize.h2,
     fontWeight: Typography.fontWeight.semibold,
-    color: Colors.text.primary,
     marginBottom: 4,
   },
   readTime: {
     fontSize: Typography.fontSize.caption,
-    color: Colors.text.tertiary,
   },
   playAllButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.dark.surface,
     paddingHorizontal: Spacing.md,
     paddingVertical: 12,
     borderRadius: 8,
     borderWidth: 2,
-    borderColor: Colors.primary.blue,
   },
   playAllText: {
-    color: Colors.primary.blue,
     fontWeight: Typography.fontWeight.semibold,
     marginLeft: Spacing.sm,
     fontSize: Typography.fontSize.body,
@@ -252,38 +257,32 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: Typography.fontSize.h3,
     fontWeight: Typography.fontWeight.semibold,
-    color: Colors.text.primary,
     marginTop: Spacing.md,
     marginBottom: Spacing.sm,
   },
   emptyText: {
     fontSize: Typography.fontSize.body,
-    color: Colors.text.tertiary,
     textAlign: 'center',
     lineHeight: 24,
   },
   selectionActions: {
     flexDirection: 'row',
-    backgroundColor: Colors.dark.surface,
     paddingHorizontal: Spacing.md,
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: Colors.dark.surfaceHigh,
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.primary.blue,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderRadius: 6,
     marginRight: 12,
   },
   cancelButton: {
-    backgroundColor: Colors.text.tertiary,
+    // Overridden in render
   },
   actionText: {
-    color: Colors.text.primary,
     fontWeight: Typography.fontWeight.medium,
     marginLeft: 6,
     fontSize: Typography.fontSize.caption,

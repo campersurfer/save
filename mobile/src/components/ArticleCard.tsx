@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import {
   View,
   Text,
@@ -6,25 +6,16 @@ import {
   TouchableOpacity,
   Image,
   Dimensions,
+  Share,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Typography, Spacing, Geometry, Components } from '../styles/BauhausDesign';
+import { Typography, Spacing, Geometry, Components } from '../styles/BauhausDesign';
+import { Article } from '../services/StorageService';
+import { useTheme } from '../providers/ThemeProvider';
+import { ContentContext } from '../providers/ContentProvider';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-interface Article {
-  id: string;
-  title: string;
-  author?: string;
-  content: string;
-  url: string;
-  imageUrl?: string;
-  readTime?: number;
-  savedAt: Date;
-  readAt?: Date;
-  dominantColor?: string;
-  type: 'article' | 'tweet' | 'instagram' | 'tiktok';
-}
 
 interface ArticleCardProps {
   article: Article;
@@ -43,6 +34,54 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({
   isSelectionMode,
   isCurrentlyPlaying,
 }) => {
+  const { colors } = useTheme();
+  const { toggleFavorite, archiveArticle, deleteArticle } = useContext(ContentContext);
+
+  const handleShare = async () => {
+    try {
+      await Share.share({
+        message: article.url,
+        title: article.title,
+      });
+    } catch (error) {
+      console.error('Share error:', error);
+    }
+  };
+
+  const handleFavorite = () => {
+    toggleFavorite(article.id);
+  };
+
+  const handleMoreOptions = () => {
+    Alert.alert(
+      'Article Options',
+      article.title,
+      [
+        { 
+          text: 'Add tags', 
+          onPress: () => Alert.alert('Add Tags', 'Tagging interface coming soon') 
+        },
+        { 
+          text: 'Archive', 
+          onPress: () => archiveArticle(article.id) 
+        },
+        { 
+          text: 'Delete', 
+          style: 'destructive',
+          onPress: () => Alert.alert(
+            'Delete Article',
+            'Are you sure you want to delete this article?',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Delete', style: 'destructive', onPress: () => deleteArticle(article.id) }
+            ]
+          )
+        },
+        { text: 'Cancel', style: 'cancel' }
+      ]
+    );
+  };
+
   const getTypeIcon = (): keyof typeof Ionicons.glyphMap => {
     switch (article.type) {
       case 'article':
@@ -77,8 +116,12 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({
     <TouchableOpacity
       style={[
         styles.container,
-        isSelected && styles.selected,
-        isCurrentlyPlaying && styles.playing,
+        { 
+          backgroundColor: colors.surface,
+          borderColor: isSelected || isCurrentlyPlaying ? colors.primary.blue : colors.border,
+          borderWidth: isCurrentlyPlaying ? 2 : 1,
+        },
+        isSelected && { backgroundColor: `${colors.primary.blue}1A` }, // 10% opacity
       ]}
       onPress={onPress}
       onLongPress={onLongPress}
@@ -86,11 +129,11 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({
     >
       {/* Selection indicator */}
       {isSelectionMode && (
-        <View style={styles.selectionIndicator}>
+        <View style={[styles.selectionIndicator, { backgroundColor: colors.surface }]}>
           <Ionicons
             name={isSelected ? 'checkmark-circle' : 'radio-button-off'}
             size={24}
-            color={isSelected ? Colors.primary.blue : Colors.text.tertiary}
+            color={isSelected ? colors.primary.blue : colors.text.tertiary}
           />
         </View>
       )}
@@ -99,7 +142,7 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({
       {article.imageUrl && (
         <Image
           source={{ uri: article.imageUrl }}
-          style={styles.image}
+          style={[styles.image, { backgroundColor: colors.border }]}
           resizeMode="cover"
         />
       )}
@@ -109,24 +152,24 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({
         {/* Header with type icon and metadata */}
         <View style={styles.header}>
           <View style={styles.typeContainer}>
-            <Ionicons name={getTypeIcon()} size={Geometry.iconSize.small} color={Colors.text.tertiary} />
-            <Text style={styles.typeText}>{article.type}</Text>
+            <Ionicons name={getTypeIcon()} size={Geometry.iconSize.small} color={colors.text.tertiary} />
+            <Text style={[styles.typeText, { color: colors.text.tertiary }]}>{article.type}</Text>
           </View>
-          <Text style={styles.timeText}>{formatDate(article.savedAt)}</Text>
+          <Text style={[styles.timeText, { color: colors.text.tertiary }]}>{formatDate(article.savedAt)}</Text>
         </View>
 
         {/* Title */}
-        <Text style={styles.title} numberOfLines={2}>
+        <Text style={[styles.title, { color: colors.text.primary }]} numberOfLines={2}>
           {article.title}
         </Text>
 
         {/* Author */}
         {article.author && (
-          <Text style={styles.author}>by {article.author}</Text>
+          <Text style={[styles.author, { color: colors.text.tertiary }]}>by {article.author}</Text>
         )}
 
         {/* Content preview */}
-        <Text style={styles.contentPreview} numberOfLines={2}>
+        <Text style={[styles.contentPreview, { color: colors.text.secondary }]} numberOfLines={2}>
           {truncateContent(article.content)}
         </Text>
 
@@ -134,23 +177,33 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({
         <View style={styles.footer}>
           <View style={styles.metaInfo}>
             {article.readTime && (
-              <Text style={styles.readTime}>{article.readTime} min read</Text>
+              <Text style={[styles.readTime, { color: colors.text.tertiary }]}>{article.readTime} min read</Text>
             )}
-            {article.readAt && (
-              <View style={styles.readIndicator}>
-                <Ionicons name="checkmark-circle" size={14} color={Colors.semantic.success} />
-                <Text style={styles.readText}>Read</Text>
+            {/* Playing indicator */}
+            {isCurrentlyPlaying && (
+              <View style={[styles.playingIndicator, { backgroundColor: `${colors.primary.blue}26` }]}>
+                <Ionicons name="volume-high" size={Geometry.iconSize.small} color={colors.primary.blue} />
+                <Text style={[styles.playingText, { color: colors.primary.blue }]}>Playing</Text>
               </View>
             )}
           </View>
           
-          {/* Playing indicator */}
-          {isCurrentlyPlaying && (
-            <View style={styles.playingIndicator}>
-              <Ionicons name="volume-high" size={Geometry.iconSize.small} color={Colors.primary.blue} />
-              <Text style={styles.playingText}>Playing</Text>
-            </View>
-          )}
+          {/* Actions */}
+          <View style={styles.actions}>
+            <TouchableOpacity style={styles.actionButton} onPress={handleFavorite}>
+              <Ionicons 
+                name={article.isFavorite ? "star" : "star-outline"} 
+                size={20} 
+                color={article.isFavorite ? colors.primary.blue : colors.text.tertiary} 
+              />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionButton} onPress={handleShare}>
+              <Ionicons name="share-outline" size={20} color={colors.text.tertiary} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionButton} onPress={handleMoreOptions}>
+              <Ionicons name="ellipsis-horizontal" size={20} color={colors.text.tertiary} />
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </TouchableOpacity>
@@ -159,32 +212,22 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    ...Components.card,
+    borderRadius: Geometry.borderRadius.none, // Sharp Bauhaus edges
     marginHorizontal: Spacing.md,
     marginVertical: Spacing.xs,
     overflow: 'hidden',
-  },
-  selected: {
-    borderColor: Colors.primary.blue,
-    backgroundColor: 'rgba(0, 102, 255, 0.1)',
-  },
-  playing: {
-    borderColor: Colors.primary.blue,
-    borderWidth: 2,
   },
   selectionIndicator: {
     position: 'absolute',
     top: Spacing.sm,
     right: Spacing.sm,
     zIndex: 10,
-    backgroundColor: Colors.dark.surface,
     borderRadius: Geometry.borderRadius.none,
     padding: 2,
   },
   image: {
     width: '100%',
     height: 120,
-    backgroundColor: Colors.dark.border,
   },
   content: {
     padding: Spacing.md,
@@ -200,18 +243,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   typeText: {
-    color: Colors.text.tertiary,
     fontSize: Typography.fontSize.small,
     fontWeight: Typography.fontWeight.medium,
     marginLeft: 6,
     textTransform: 'capitalize',
   },
   timeText: {
-    color: Colors.text.tertiary,
     fontSize: Typography.fontSize.small,
   },
   title: {
-    color: Colors.text.primary,
     fontSize: Typography.fontSize.body,
     fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.fontFamily.heading,
@@ -219,12 +259,10 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   author: {
-    color: Colors.text.tertiary,
     fontSize: Typography.fontSize.caption,
     marginBottom: Spacing.sm,
   },
   contentPreview: {
-    color: Colors.text.secondary,
     fontSize: Typography.fontSize.caption,
     lineHeight: Typography.lineHeight.normal * Typography.fontSize.caption,
     marginBottom: Spacing.sm,
@@ -233,6 +271,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginTop: Spacing.xs,
   },
   metaInfo: {
     flexDirection: 'row',
@@ -240,7 +279,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   readTime: {
-    color: Colors.text.tertiary,
     fontSize: Typography.fontSize.small,
     marginRight: Spacing.sm,
   },
@@ -249,7 +287,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   readText: {
-    color: Colors.semantic.success,
     fontSize: Typography.fontSize.small,
     marginLeft: 4,
     fontWeight: Typography.fontWeight.medium,
@@ -257,15 +294,21 @@ const styles = StyleSheet.create({
   playingIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 102, 255, 0.15)',
     paddingHorizontal: Spacing.sm,
     paddingVertical: 4,
     borderRadius: Geometry.borderRadius.none,
   },
   playingText: {
-    color: Colors.primary.blue,
     fontSize: Typography.fontSize.small,
     fontWeight: Typography.fontWeight.semibold,
     marginLeft: 4,
+  },
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  actionButton: {
+    marginLeft: Spacing.md,
+    padding: 4,
   },
 });

@@ -3,53 +3,11 @@
  * Based on Bauhaus principles: Geometric forms, primary colors, functional beauty
  */
 
-// ============================================
-// COLOR SYSTEM
-// ============================================
+// Import Colors from separate file to avoid circular reference issues
+import { Colors } from './colors';
 
-export const Colors = {
-  // Primary Bauhaus Colors
-  primary: {
-    blue: '#0066FF',      // Bauhaus Blue - Primary brand color
-    yellow: '#FFD700',    // Bauhaus Yellow - Accent color
-    red: '#FF3B30',       // Bauhaus Red - Alert/Important
-    black: '#000000',     // Pure Black
-    white: '#FFFFFF',     // Pure White
-  },
-  
-  // Dark Mode Optimized (OLED)
-  dark: {
-    background: '#0A0A0B',    // OLED Black - Battery efficient
-    surface: '#1A1A1C',       // Elevated surfaces
-    surfaceHigh: '#2A2A2C',   // Higher elevation
-    border: '#3A3A3C',        // Subtle borders
-  },
-  
-  // Semantic Colors
-  semantic: {
-    success: '#4CAF50',
-    warning: '#FFD700',
-    error: '#FF3B30',
-    info: '#0066FF',
-  },
-  
-  // Text Colors
-  text: {
-    primary: '#FFFFFF',
-    secondary: '#CCCCCC',
-    tertiary: '#6B6B70',
-    inverse: '#0A0A0B',
-  },
-  
-  // Mood Colors (for Mind Mode)
-  mood: {
-    light: '#FFD700',     // Yellow
-    dark: '#4A4A4A',      // Dark Gray
-    warm: '#FF6B6B',      // Warm Red
-    cool: '#4ECDC4',      // Cool Cyan
-    neutral: '#0066FF',   // Blue
-  },
-};
+// Re-export Colors for backward compatibility
+export { Colors };
 
 // ============================================
 // TYPOGRAPHY SYSTEM

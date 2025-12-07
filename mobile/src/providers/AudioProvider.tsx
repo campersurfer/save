@@ -1,16 +1,6 @@
 import React, { createContext, useState, useRef, useEffect, useCallback } from 'react';
 import * as Speech from 'expo-speech';
-import { StorageService } from '../services/StorageService';
-
-interface Article {
-  id: string;
-  title: string;
-  author?: string;
-  content: string;
-  url: string;
-  readTime?: number;
-  type: 'article' | 'tweet' | 'instagram' | 'tiktok';
-}
+import { StorageService, Article } from '../services/StorageService';
 
 interface AudioContextType {
   // Playback state
@@ -20,6 +10,8 @@ interface AudioContextType {
   currentPosition: number;
   totalDuration: number;
   playbackSpeed: number;
+  voices: Speech.Voice[];
+  selectedVoice: string | null;
   
   // Queue management
   playQueue: Article[];
@@ -34,6 +26,7 @@ interface AudioContextType {
   skipToNext: () => Promise<void>;
   skipToPrevious: () => Promise<void>;
   setPlaybackSpeed: (speed: number) => Promise<void>;
+  setVoice: (identifier: string) => Promise<void>;
   
   // Queue controls
   addToQueue: (article: Article) => void;
@@ -52,6 +45,8 @@ export const AudioContext = createContext<AudioContextType>({
   currentPosition: 0,
   totalDuration: 0,
   playbackSpeed: 1.0,
+  voices: [],
+  selectedVoice: null,
   playQueue: [],
   currentIndex: -1,
   playArticle: async () => {},
@@ -62,6 +57,7 @@ export const AudioContext = createContext<AudioContextType>({
   skipToNext: async () => {},
   skipToPrevious: async () => {},
   setPlaybackSpeed: async () => {},
+  setVoice: async () => {},
   addToQueue: () => {},
   removeFromQueue: () => {},
   clearQueue: () => {},
@@ -81,6 +77,8 @@ export const AudioProvider: React.FC<AudioProviderProps> = ({ children }) => {
   const [currentPosition, setCurrentPosition] = useState(0);
   const [totalDuration, setTotalDuration] = useState(0);
   const [playbackSpeed, setPlaybackSpeedState] = useState(1.0);
+  const [voices, setVoices] = useState<Speech.Voice[]>([]);
+  const [selectedVoice, setSelectedVoice] = useState<string | null>(null);
   const [queue, setQueue] = useState<Article[]>([]);
   const [currentIndex, setCurrentIndex] = useState(-1);
   const [sleepTimerMinutes, setSleepTimerMinutes] = useState<number | null>(null);
@@ -92,11 +90,25 @@ export const AudioProvider: React.FC<AudioProviderProps> = ({ children }) => {
     rate: number;
     pitch: number;
     language: string;
+    voice?: string;
   }>({
     rate: 1.0,
     pitch: 1.0,
     language: 'en-US',
   });
+
+  // Load voices
+  useEffect(() => {
+    const loadVoices = async () => {
+      try {
+        const available = await Speech.getAvailableVoicesAsync();
+        setVoices(available);
+      } catch (error) {
+        console.error('Error loading voices:', error);
+      }
+    };
+    loadVoices();
+  }, []);
 
   // Load settings on mount
   useEffect(() => {
@@ -110,8 +122,10 @@ export const AudioProvider: React.FC<AudioProviderProps> = ({ children }) => {
         rate: settings.speechRate,
         pitch: settings.speechPitch,
         language: settings.speechLanguage,
+        voice: settings.speechVoice,
       };
       setPlaybackSpeedState(settings.speechRate);
+      setSelectedVoice(settings.speechVoice || null);
     } catch (error) {
       console.error('Failed to load audio settings:', error);
     }
@@ -309,6 +323,16 @@ export const AudioProvider: React.FC<AudioProviderProps> = ({ children }) => {
     }
   }, [isPlaying, currentArticle, playArticle]);
 
+  const setVoice = useCallback(async (identifier: string) => {
+    try {
+      speechSettings.current.voice = identifier;
+      setSelectedVoice(identifier);
+      await StorageService.updateSettings({ speechVoice: identifier });
+    } catch (error) {
+      console.error('Error setting voice:', error);
+    }
+  }, []);
+
   const addToQueue = useCallback((article: Article) => {
     setQueue(prevQueue => [...prevQueue, article]);
   }, []);
@@ -375,6 +399,8 @@ export const AudioProvider: React.FC<AudioProviderProps> = ({ children }) => {
     currentPosition,
     totalDuration,
     playbackSpeed,
+    voices,
+    selectedVoice,
     playQueue: queue,
     currentIndex,
     playArticle,
@@ -385,6 +411,7 @@ export const AudioProvider: React.FC<AudioProviderProps> = ({ children }) => {
     skipToNext,
     skipToPrevious,
     setPlaybackSpeed,
+    setVoice,
     addToQueue,
     removeFromQueue,
     clearQueue,

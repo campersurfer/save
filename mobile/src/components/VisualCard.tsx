@@ -9,28 +9,18 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-
-interface ContentItem {
-  id: string;
-  title: string;
-  author?: string;
-  content: string;
-  url: string;
-  imageUrl?: string;
-  dominantColor?: string;
-  mood?: 'light' | 'dark' | 'warm' | 'cool' | 'neutral';
-  type: 'article' | 'tweet' | 'instagram' | 'tiktok';
-  savedAt: Date;
-  tags?: string[];
-}
+import { useTheme } from '../providers/ThemeProvider';
+import { Article } from '../services/StorageService';
 
 interface VisualCardProps {
-  item: ContentItem;
+  item: Article;
   width: number;
   onPress: () => void;
 }
 
 export const VisualCard: React.FC<VisualCardProps> = ({ item, width, onPress }) => {
+  const { colors, isDark } = useTheme();
+
   const getTypeIcon = (): keyof typeof Ionicons.glyphMap => {
     switch (item.type) {
       case 'article':
@@ -41,6 +31,8 @@ export const VisualCard: React.FC<VisualCardProps> = ({ item, width, onPress }) 
         return 'logo-instagram';
       case 'tiktok':
         return 'musical-notes-outline';
+      case 'note':
+        return 'document-text-outline';
       default:
         return 'document-outline';
     }
@@ -53,16 +45,16 @@ export const VisualCard: React.FC<VisualCardProps> = ({ item, width, onPress }) 
     
     switch (item.mood) {
       case 'light':
-        return '#FFD700';
+        return colors.mood.light;
       case 'dark':
-        return '#4A4A4A';
+        return colors.mood.dark;
       case 'warm':
-        return '#FF6B6B';
+        return colors.mood.warm;
       case 'cool':
-        return '#4ECDC4';
+        return colors.mood.cool;
       case 'neutral':
       default:
-        return '#0066FF';
+        return colors.mood.neutral;
     }
   };
 
@@ -97,7 +89,12 @@ export const VisualCard: React.FC<VisualCardProps> = ({ item, width, onPress }) 
     <TouchableOpacity
       style={[
         styles.container,
-        { width, height: dynamicHeight },
+        { 
+          width, 
+          height: dynamicHeight,
+          backgroundColor: colors.surface,
+          shadowColor: colors.text.primary 
+        },
       ]}
       onPress={onPress}
       activeOpacity={0.8}
@@ -114,7 +111,7 @@ export const VisualCard: React.FC<VisualCardProps> = ({ item, width, onPress }) 
       {item.imageUrl ? (
         <Image
           source={{ uri: item.imageUrl }}
-          style={styles.image}
+          style={[styles.image, { backgroundColor: colors.surfaceHigh }]}
           resizeMode="cover"
         />
       ) : (
@@ -127,38 +124,44 @@ export const VisualCard: React.FC<VisualCardProps> = ({ item, width, onPress }) 
           <Ionicons
             name={getTypeIcon()}
             size={32}
-            color="#FFFFFF"
+            color={colors.text.inverse}
             style={styles.typeIcon}
           />
         </View>
       )}
 
       {/* Content overlay */}
-      <View style={styles.contentOverlay}>
+      <View style={[
+        styles.contentOverlay, 
+        { 
+          backgroundColor: isDark ? 'rgba(26, 26, 28, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+          borderTopColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'
+        }
+      ]}>
         {/* Header with type and date */}
         <View style={styles.header}>
           <View style={styles.typeContainer}>
-            <Ionicons name={getTypeIcon()} size={12} color="#FFFFFF" />
-            <Text style={styles.typeText}>{item.type}</Text>
+            <Ionicons name={getTypeIcon()} size={12} color={colors.text.tertiary} />
+            <Text style={[styles.typeText, { color: colors.text.tertiary }]}>{item.type}</Text>
           </View>
-          <Text style={styles.dateText}>{formatDate(item.savedAt)}</Text>
+          <Text style={[styles.dateText, { color: colors.text.tertiary }]}>{formatDate(item.savedAt)}</Text>
         </View>
 
         {/* Title */}
-        <Text style={styles.title} numberOfLines={3}>
+        <Text style={[styles.title, { color: colors.text.primary }]} numberOfLines={3}>
           {item.title}
         </Text>
 
         {/* Author if available */}
         {item.author && (
-          <Text style={styles.author} numberOfLines={1}>
+          <Text style={[styles.author, { color: colors.text.secondary }]} numberOfLines={1}>
             {truncateText(item.author, 20)}
           </Text>
         )}
 
         {/* Content preview for text-heavy items */}
         {item.type === 'article' && item.content && (
-          <Text style={styles.contentPreview} numberOfLines={2}>
+          <Text style={[styles.contentPreview, { color: colors.text.secondary }]} numberOfLines={2}>
             {truncateText(item.content, 80)}
           </Text>
         )}
@@ -167,12 +170,12 @@ export const VisualCard: React.FC<VisualCardProps> = ({ item, width, onPress }) 
         {item.tags && item.tags.length > 0 && (
           <View style={styles.tagsContainer}>
             {item.tags.slice(0, 2).map((tag, index) => (
-              <View key={index} style={styles.tag}>
-                <Text style={styles.tagText}>{tag}</Text>
+              <View key={index} style={[styles.tag, { backgroundColor: `${colors.primary.blue}20` }]}>
+                <Text style={[styles.tagText, { color: colors.primary.blue }]}>{tag}</Text>
               </View>
             ))}
             {item.tags.length > 2 && (
-              <Text style={styles.moreTagsText}>+{item.tags.length - 2}</Text>
+              <Text style={[styles.moreTagsText, { color: colors.text.tertiary }]}>+{item.tags.length - 2}</Text>
             )}
           </View>
         )}
@@ -186,7 +189,16 @@ export const VisualCard: React.FC<VisualCardProps> = ({ item, width, onPress }) 
                 { backgroundColor: getMoodColor() },
               ]}
             />
-            <Text style={styles.moodText}>{item.mood}</Text>
+            <Text style={[
+              styles.moodText, 
+              { 
+                color: item.imageUrl ? '#FFFFFF' : colors.text.primary,
+                textShadowColor: item.imageUrl ? 'rgba(0, 0, 0, 0.5)' : undefined,
+                textShadowRadius: item.imageUrl ? 2 : 0
+              }
+            ]}>
+              {item.mood}
+            </Text>
           </View>
         )}
       </View>
@@ -206,10 +218,8 @@ const styles = StyleSheet.create({
   container: {
     borderRadius: 12,
     overflow: 'hidden',
-    backgroundColor: '#1A1A1C',
     position: 'relative',
     elevation: 2,
-    shadowColor: '#000000',
     shadowOffset: {
       width: 0,
       height: 2,
@@ -227,7 +237,6 @@ const styles = StyleSheet.create({
   image: {
     width: '100%',
     height: 80,
-    backgroundColor: '#2A2A2C',
   },
   colorBlock: {
     width: '100%',
@@ -243,10 +252,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: 'rgba(26, 26, 28, 0.95)',
     padding: 12,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
   },
   header: {
     flexDirection: 'row',
@@ -259,31 +266,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   typeText: {
-    color: '#CCCCCC',
     fontSize: 10,
     fontWeight: '500',
     marginLeft: 4,
     textTransform: 'capitalize',
   },
   dateText: {
-    color: '#6B6B70',
     fontSize: 10,
   },
   title: {
-    color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '600',
     lineHeight: 17,
     marginBottom: 4,
   },
   author: {
-    color: '#CCCCCC',
     fontSize: 11,
     marginBottom: 4,
     fontStyle: 'italic',
   },
   contentPreview: {
-    color: '#CCCCCC',
     fontSize: 11,
     lineHeight: 14,
     marginBottom: 6,
@@ -295,19 +297,16 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   tag: {
-    backgroundColor: 'rgba(0, 102, 255, 0.2)',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 8,
     marginRight: 4,
   },
   tagText: {
-    color: '#0066FF',
     fontSize: 9,
     fontWeight: '500',
   },
   moreTagsText: {
-    color: '#6B6B70',
     fontSize: 9,
   },
   moodIndicator: {
@@ -324,13 +323,10 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   moodText: {
-    color: '#FFFFFF',
     fontSize: 9,
     fontWeight: '500',
     textTransform: 'capitalize',
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
   },
   border: {
     position: 'absolute',
