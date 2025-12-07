@@ -329,10 +329,19 @@ export const AudioProvider: React.FC<AudioProviderProps> = ({ children }) => {
       speechSettings.current.voice = identifier;
       setSelectedVoice(identifier);
       await StorageService.updateSettings({ speechVoice: identifier });
+      
+      // If currently playing, restart with new voice
+      if (isPlaying && currentArticle) {
+        // Save current position
+        const position = currentPosition;
+        await playArticle(currentArticle);
+        // Note: Expo Speech doesn't support seeking, so we restart from beginning
+        // In a more advanced implementation, we could try to estimate text offset
+      }
     } catch (error) {
       console.error('Error setting voice:', error);
     }
-  }, []);
+  }, [isPlaying, currentArticle, playArticle, currentPosition]);
 
   const addToQueue = useCallback((article: Article) => {
     setQueue(prevQueue => [...prevQueue, article]);
