@@ -188,6 +188,9 @@ export default function SettingsScreen() {
     );
   };
 
+  // Filter to English voices for better UX
+  const englishVoices = voices.filter(v => v.language.startsWith('en'));
+  
   const renderVoiceModal = () => (
     <Modal
       visible={showVoiceModal}
@@ -197,37 +200,46 @@ export default function SettingsScreen() {
     >
         <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
             <View style={[styles.modalHeader, { borderBottomColor: colors.surfaceHigh }]}>
-                <Text style={[styles.modalTitle, { color: colors.text.primary }]}>Select Voice</Text>
+                <Text style={[styles.modalTitle, { color: colors.text.primary }]}>Select Voice ({englishVoices.length} available)</Text>
                 <TouchableOpacity onPress={() => setShowVoiceModal(false)}>
                     <Text style={{ color: colors.primary.blue, fontSize: 16, fontWeight: '600' }}>Done</Text>
                 </TouchableOpacity>
             </View>
-            <FlatList
-                data={voices}
-                keyExtractor={(item) => item.identifier}
-                contentContainerStyle={{ paddingBottom: 40 }}
-                renderItem={({ item }) => (
-                    <TouchableOpacity
-                        style={[
-                            styles.voiceItem, 
-                            { borderBottomColor: colors.surfaceHigh },
-                            item.identifier === selectedVoice && { backgroundColor: colors.surface }
-                        ]}
-                        onPress={() => {
-                            setVoice(item.identifier);
-                            setShowVoiceModal(false);
-                        }}
-                    >
-                        <View style={{ flex: 1 }}>
-                            <Text style={[styles.voiceName, { color: colors.text.primary }]}>{item.name}</Text>
-                            <Text style={[styles.voiceLang, { color: colors.text.tertiary }]}>{item.language}</Text>
-                        </View>
-                        {item.identifier === selectedVoice && (
-                            <Ionicons name="checkmark" size={24} color={colors.primary.blue} />
-                        )}
-                    </TouchableOpacity>
-                )}
-            />
+            {englishVoices.length === 0 ? (
+                <View style={styles.emptyVoices}>
+                    <Ionicons name="mic-off-outline" size={48} color={colors.text.tertiary} />
+                    <Text style={[styles.emptyVoicesText, { color: colors.text.tertiary }]}>
+                        No voices available. Please check your device settings.
+                    </Text>
+                </View>
+            ) : (
+                <FlatList
+                    data={englishVoices}
+                    keyExtractor={(item) => item.identifier}
+                    contentContainerStyle={{ paddingBottom: 40 }}
+                    renderItem={({ item }) => (
+                        <TouchableOpacity
+                            style={[
+                                styles.voiceItem, 
+                                { borderBottomColor: colors.surfaceHigh },
+                                item.identifier === selectedVoice && { backgroundColor: colors.surface }
+                            ]}
+                            onPress={() => {
+                                setVoice(item.identifier);
+                                setShowVoiceModal(false);
+                            }}
+                        >
+                            <View style={{ flex: 1 }}>
+                                <Text style={[styles.voiceName, { color: colors.text.primary }]}>{item.name}</Text>
+                                <Text style={[styles.voiceLang, { color: colors.text.tertiary }]}>{item.language}</Text>
+                            </View>
+                            {item.identifier === selectedVoice && (
+                                <Ionicons name="checkmark" size={24} color={colors.primary.blue} />
+                            )}
+                        </TouchableOpacity>
+                    )}
+                />
+            )}
         </View>
     </Modal>
   );
@@ -424,6 +436,9 @@ export default function SettingsScreen() {
           </Text>
         </View>
       </ScrollView>
+      
+      {/* Voice Selection Modal */}
+      {renderVoiceModal()}
     </View>
   );
 }
@@ -576,5 +591,17 @@ const styles = StyleSheet.create({
   },
   voiceLang: {
     fontSize: 14,
+  },
+  emptyVoices: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+  },
+  emptyVoicesText: {
+    marginTop: 16,
+    fontSize: 16,
+    textAlign: 'center',
+    lineHeight: 24,
   },
 });

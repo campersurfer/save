@@ -13,7 +13,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { WebView } from 'react-native-webview';
+// WebView removed - using native text display only
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
 import { AudioContext } from '../providers/AudioProvider';
@@ -42,7 +42,7 @@ export default function ArticleDetailScreen() {
   const { articles, markAsRead, deleteArticle, refreshArticleContent, isLoading } = useContext(ContentContext);
   
   const [isCurrentlyPlaying, setIsCurrentlyPlaying] = useState(false);
-  const [viewMode, setViewMode] = useState<'read' | 'web'>('read');
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Look up article from context by ID
   const article = articleId ? articles.find(a => a.id === articleId) : null;
@@ -59,6 +59,23 @@ export default function ArticleDetailScreen() {
       setIsCurrentlyPlaying(isPlaying && currentArticle?.id === article.id);
     }
   }, [isPlaying, currentArticle, article]);
+
+  // Auto-refresh content if it's empty or too short
+  useEffect(() => {
+    const autoRefresh = async () => {
+      if (article && article.url && (!article.content || article.content.length < 50)) {
+        setIsRefreshing(true);
+        try {
+          await refreshArticleContent(article.id);
+        } catch (error) {
+          console.log('Auto-refresh failed:', error);
+        } finally {
+          setIsRefreshing(false);
+        }
+      }
+    };
+    autoRefresh();
+  }, [article?.id]);
 
   // Handle case where article is not found
   if (!article) {
@@ -192,18 +209,7 @@ export default function ArticleDetailScreen() {
         </TouchableOpacity>
         
         <View style={styles.headerActions}>
-          <TouchableOpacity 
-            style={styles.headerButton} 
-            onPress={() => setViewMode(viewMode === 'read' ? 'web' : 'read')}
-          >
-            <Ionicons 
-              name={viewMode === 'read' ? "globe-outline" : "reader-outline"} 
-              size={24} 
-              color={colors.text.primary} 
-            />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.headerButton} onPress={handleRefresh} disabled={isLoading}>
+          <TouchableOpacity style={styles.headerButton} onPress={handleRefresh} disabled={isLoading || isRefreshing}>
             {isLoading ? (
               <ActivityIndicator size="small" color={colors.text.primary} />
             ) : (
@@ -221,100 +227,81 @@ export default function ArticleDetailScreen() {
         </View>
       </View>
 
-      {viewMode === 'web' ? (
-        <WebView 
-          source={{ uri: article.url }} 
-          style={{ flex: 1, backgroundColor: colors.background }}
-          startInLoadingState
-          renderLoading={() => (
-             <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
-               <ActivityIndicator size="large" color={colors.primary.blue} />
-             </View>
-          )}
-        />
-      ) : (
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-          {/* Article Image */}
-          {article.imageUrl && (
-            <Image source={{ uri: article.imageUrl }} style={[styles.articleImage, { backgroundColor: colors.surface }]} />
-          )}
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={true}>
+        {/* Article Image */}
+        {article.imageUrl && (
+          <Image source={{ uri: article.imageUrl }} style={[styles.articleImage, { backgroundColor: colors.surface }]} />
+        )}
 
-          {/* Article Header Info */}
-          <View style={[styles.articleHeader, { borderBottomColor: colors.surface }]}>
-            <View style={styles.articleMeta}>
-              <View style={styles.typeContainer}>
-                <Ionicons name={getTypeIcon()} size={16} color={getMoodColor()} />
-                <Text style={[styles.typeText, { color: getMoodColor() }]}>
-                  {article.type.toUpperCase()}
-                </Text>
-              </View>
-              
-              <Text style={[styles.dateText, { color: colors.text.tertiary }]}>{formatDate(article.savedAt)}</Text>
+        {/* Article Header Info */}
+        <View style={[styles.articleHeader, { borderBottomColor: colors.surface }]}>
+          <View style={styles.articleMeta}>
+            <View style={styles.typeContainer}>
+              <Ionicons name={getTypeIcon()} size={16} color={getMoodColor()} />
+              <Text style={[styles.typeText, { color: getMoodColor() }]}>
+                {article.type.toUpperCase()}
+              </Text>
             </View>
-
-            {/* Article Title */}
-            <TouchableOpacity onPress={handleOpenOriginal}>
-              <Text style={[styles.articleTitle, { color: colors.text.primary }]}>{article.title}</Text>
-            </TouchableOpacity>
-
-            {/* Author & Reading Time */}
-            <View style={styles.articleSubMeta}>
-              {article.author && (
-                <Text style={[styles.authorText, { color: colors.text.secondary }]}>By {article.author}</Text>
-              )}
-              
-              {article.readTime && (
-                <Text style={[styles.readTimeText, { color: colors.text.tertiary }]}>
-                  {article.readTime} min read
-                </Text>
-              )}
-            </View>
-
-            {/* Tags */}
-            {article.tags && article.tags.length > 0 && (
-              <View style={styles.tagsContainer}>
-                {article.tags.map((tag, index) => (
-                  <View key={index} style={[styles.tag, { borderColor: getMoodColor() }]}>
-                    <Text style={[styles.tagText, { color: getMoodColor() }]}>{tag}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-          </View>
-
-          {/* Article Content */}
-          <View style={styles.contentContainer}>
-            <Text style={[styles.articleContent, { color: colors.text.secondary }]}>
-              {article.content || 'No content available to read.'}
-            </Text>
             
-            {/* Suggest Web Mode if content is empty */}
-            {(!article.content || article.content.length < 100) && (
-              <TouchableOpacity 
-                style={[styles.emptyHint, { backgroundColor: colors.surface }]}
-                onPress={() => setViewMode('web')}
-              >
-                <Ionicons name="globe-outline" size={24} color={colors.primary.blue} />
-                <Text style={[styles.emptyHintText, { color: colors.text.primary }]}>
-                  Content extraction incomplete. Tap to view full web version.
-                </Text>
-              </TouchableOpacity>
-            )}
+            <Text style={[styles.dateText, { color: colors.text.tertiary }]}>{formatDate(article.savedAt)}</Text>
           </View>
 
-          {/* Source Link */}
-          <TouchableOpacity 
-            style={[styles.sourceButton, { backgroundColor: colors.surface, borderColor: colors.primary.blue }]} 
-            onPress={handleOpenOriginal}
-          >
-            <Ionicons name="open-outline" size={20} color={colors.primary.blue} />
-            <Text style={[styles.sourceButtonText, { color: colors.primary.blue }]}>Open in Browser</Text>
+          {/* Article Title */}
+          <TouchableOpacity onPress={handleOpenOriginal}>
+            <Text style={[styles.articleTitle, { color: colors.text.primary }]}>{article.title}</Text>
           </TouchableOpacity>
 
-          {/* Bottom padding for audio player */}
-          <View style={styles.bottomPadding} />
-        </ScrollView>
-      )}
+          {/* Author & Reading Time */}
+          <View style={styles.articleSubMeta}>
+            {article.author && (
+              <Text style={[styles.authorText, { color: colors.text.secondary }]}>By {article.author}</Text>
+            )}
+            
+            {article.readTime && (
+              <Text style={[styles.readTimeText, { color: colors.text.tertiary }]}>
+                {article.readTime} min read
+              </Text>
+            )}
+          </View>
+
+          {/* Tags */}
+          {article.tags && article.tags.length > 0 && (
+            <View style={styles.tagsContainer}>
+              {article.tags.map((tag, index) => (
+                <View key={index} style={[styles.tag, { borderColor: getMoodColor() }]}>
+                  <Text style={[styles.tagText, { color: getMoodColor() }]}>{tag}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
+        {/* Article Content */}
+        <View style={styles.contentContainer}>
+          {isRefreshing ? (
+            <View style={styles.loadingContent}>
+              <ActivityIndicator size="large" color={colors.primary.blue} />
+              <Text style={[styles.loadingText, { color: colors.text.tertiary }]}>Loading article content...</Text>
+            </View>
+          ) : (
+            <Text style={[styles.articleContent, { color: colors.text.secondary }]}>
+              {article.content || 'Unable to extract content. Tap the title above to read the original article.'}
+            </Text>
+          )}
+        </View>
+
+        {/* Source Link */}
+        <TouchableOpacity 
+          style={[styles.sourceButton, { backgroundColor: colors.surface, borderColor: colors.primary.blue }]} 
+          onPress={handleOpenOriginal}
+        >
+          <Ionicons name="open-outline" size={20} color={colors.primary.blue} />
+          <Text style={[styles.sourceButtonText, { color: colors.primary.blue }]}>Open in Browser</Text>
+        </TouchableOpacity>
+
+        {/* Bottom padding for audio player */}
+        <View style={styles.bottomPadding} />
+      </ScrollView>
 
       {/* Floating Audio Control */}
       <View style={[
@@ -517,27 +504,13 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.body,
     fontWeight: Typography.fontWeight.semibold,
   },
-  emptyHint: {
-    flexDirection: 'row',
+  loadingContent: {
     alignItems: 'center',
     justifyContent: 'center',
-    padding: Spacing.md,
-    borderRadius: Geometry.borderRadius.medium,
-    marginTop: Spacing.lg,
+    paddingVertical: Spacing.xl,
   },
-  emptyHintText: {
-    marginLeft: Spacing.sm,
+  loadingText: {
+    marginTop: Spacing.md,
     fontSize: Typography.fontSize.body,
-    fontWeight: Typography.fontWeight.medium,
-    textAlign: 'center',
-  },
-  loadingContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });
