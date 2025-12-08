@@ -17,6 +17,8 @@ import { AudioContext } from '../providers/AudioProvider';
 import { StorageService } from '../services/StorageService';
 import { useTheme, ThemeMode } from '../providers/ThemeProvider';
 import { useAuth } from '../providers/AuthProvider';
+import { usePayment } from '../providers/PaymentProvider';
+import PaywallScreen from './PaywallScreen';
 
 export default function SettingsScreen() {
   // Get theme context
@@ -42,8 +44,12 @@ export default function SettingsScreen() {
     deleteAccount,
   } = useAuth();
   
+  // Get payment context
+  const { isPremium, restorePurchases } = usePayment();
+  
   // Settings state
   const [autoPlay, setAutoPlay] = useState(true);
+  const [showPaywall, setShowPaywall] = useState(false);
   const [downloadImages, setDownloadImages] = useState(true);
   const [notifications, setNotifications] = useState(true);
   const [backgroundRefresh, setBackgroundRefresh] = useState(false);
@@ -414,6 +420,53 @@ export default function SettingsScreen() {
           </>
         ))}
 
+        {/* Premium Section */}
+        {renderSection('Premium', (
+          <>
+            {isPremium ? (
+              <View style={[styles.settingItem, { backgroundColor: colors.surface }]}>
+                <View style={[styles.settingIcon, { backgroundColor: Colors.semantic.success + '20' }]}>
+                  <Ionicons name="checkmark-circle" size={22} color={Colors.semantic.success} />
+                </View>
+                <View style={styles.settingContent}>
+                  <Text style={[styles.settingTitle, { color: colors.text.primary }]}>
+                    Premium Active
+                  </Text>
+                  <Text style={[styles.settingDescription, { color: colors.text.tertiary }]}>
+                    You have access to all premium features
+                  </Text>
+                </View>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={[styles.premiumBanner, { backgroundColor: colors.primary.blue }]}
+                onPress={() => setShowPaywall(true)}
+              >
+                <View style={styles.premiumBannerContent}>
+                  <Ionicons name="diamond" size={32} color={colors.primary.white} />
+                  <View style={styles.premiumBannerText}>
+                    <Text style={[styles.premiumTitle, { color: colors.primary.white }]}>
+                      Upgrade to Premium
+                    </Text>
+                    <Text style={[styles.premiumSubtitle, { color: 'rgba(255,255,255,0.8)' }]}>
+                      Unlimited saves, offline reading, and more
+                    </Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={24} color={colors.primary.white} />
+              </TouchableOpacity>
+            )}
+            
+            {renderSettingItem(
+              'refresh-outline',
+              'Restore Purchases',
+              'Restore previous purchases',
+              <Ionicons name="chevron-forward" size={20} color={colors.text.tertiary} />,
+              restorePurchases
+            )}
+          </>
+        ))}
+
         {/* Account Section */}
         {renderSection('Account', (
           <>
@@ -546,6 +599,19 @@ export default function SettingsScreen() {
       
       {/* Voice Selection Modal */}
       {renderVoiceModal()}
+      
+      {/* Paywall Modal */}
+      <Modal
+        visible={showPaywall}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => setShowPaywall(false)}
+      >
+        <PaywallScreen 
+          onClose={() => setShowPaywall(false)}
+          onSuccess={() => setShowPaywall(false)}
+        />
+      </Modal>
     </View>
   );
 }
@@ -710,5 +776,36 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     lineHeight: 24,
+  },
+  premiumBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: 16,
+    marginBottom: 8,
+    padding: 20,
+    borderRadius: 16,
+    shadowColor: '#0066FF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  premiumBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  premiumBannerText: {
+    marginLeft: 16,
+    flex: 1,
+  },
+  premiumTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  premiumSubtitle: {
+    fontSize: 14,
   },
 });

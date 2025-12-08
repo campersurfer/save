@@ -26,6 +26,7 @@ import { AudioProvider } from './src/providers/AudioProvider';
 import { ContentProvider } from './src/providers/ContentProvider';
 import { ThemeProvider, ThemeContext, useTheme } from './src/providers/ThemeProvider';
 import { AuthProvider, useAuth } from './src/providers/AuthProvider';
+import { PaymentProvider } from './src/providers/PaymentProvider';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -208,11 +209,13 @@ export default function App() {
     <SafeAreaProvider>
       <ThemeProvider>
         <AuthProvider>
-          <ContentProvider>
-            <AudioProvider>
-              <AppContent />
-            </AudioProvider>
-          </ContentProvider>
+          <PaymentProvider>
+            <ContentProvider>
+              <AudioProvider>
+                <AppContent />
+              </AudioProvider>
+            </ContentProvider>
+          </PaymentProvider>
         </AuthProvider>
       </ThemeProvider>
     </SafeAreaProvider>
