@@ -3,7 +3,7 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView as RNScrollView,
+  ScrollView,
   TouchableOpacity,
   TextInput,
   Dimensions,
@@ -14,7 +14,6 @@ import {
   Alert,
   Image,
 } from 'react-native';
-import { ScrollView } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 // ImagePicker is imported but may not work in Expo Go - handled gracefully in handlePickImage
@@ -346,7 +345,7 @@ export default function MindScreen() {
           </TouchableOpacity>
         </View>
 
-        <RNScrollView style={styles.modalContent} keyboardShouldPersistTaps="handled">
+        <ScrollView style={styles.modalContent} keyboardShouldPersistTaps="handled">
           {/* Title Input */}
           <TextInput
             style={[styles.noteTitleInput, { backgroundColor: colors.surface, color: colors.text.primary }]}
@@ -399,14 +398,14 @@ export default function MindScreen() {
             <Text style={[styles.noteTipText, { color: colors.text.tertiary }]}>• Notes appear in your Visual Mind</Text>
             <Text style={[styles.noteTipText, { color: colors.text.tertiary }]}>• Add images to make visual cards</Text>
           </View>
-        </RNScrollView>
+        </ScrollView>
       </KeyboardAvoidingView>
     </Modal>
   );
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <RNScrollView
+      <ScrollView
         showsVerticalScrollIndicator={true}
         contentContainerStyle={{ flexGrow: 1, paddingBottom: 100 }}
         refreshControl={
@@ -440,7 +439,7 @@ export default function MindScreen() {
             )}
           />
         )}
-      </RNScrollView>
+      </ScrollView>
 
       {/* Note Creation Modal */}
       {renderNoteModal()}

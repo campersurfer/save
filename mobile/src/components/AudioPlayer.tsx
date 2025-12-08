@@ -47,8 +47,8 @@ export const AudioPlayer: React.FC = () => {
   const progress = totalDuration > 0 ? currentPosition / totalDuration : 0;
 
   const panResponder = PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: () => true,
+    onStartShouldSetPanResponder: () => false,
+    onMoveShouldSetPanResponder: () => false,
     onPanResponderGrant: () => {
       setIsDragging(true);
     },
@@ -212,7 +212,7 @@ export const AudioPlayer: React.FC = () => {
   );
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} pointerEvents="box-none">
       {isExpanded ? renderExpandedPlayer() : renderCompactPlayer()}
     </View>
   );

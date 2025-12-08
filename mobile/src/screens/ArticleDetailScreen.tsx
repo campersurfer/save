@@ -227,7 +227,11 @@ export default function ArticleDetailScreen() {
         </View>
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={true}>
+      <ScrollView 
+        style={styles.scrollView} 
+        showsVerticalScrollIndicator={true}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: 120 }}
+      >
         {/* Article Image */}
         {article.imageUrl && (
           <Image source={{ uri: article.imageUrl }} style={[styles.articleImage, { backgroundColor: colors.surface }]} />
