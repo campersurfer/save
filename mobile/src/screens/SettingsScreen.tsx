@@ -249,7 +249,7 @@ export default function SettingsScreen() {
       <ScrollView
         style={styles.scrollContainer}
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={true}
       >
         {/* Reading Settings */}
         {renderSection('Reading', (

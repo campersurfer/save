@@ -172,8 +172,8 @@ export default function FeedScreen() {
             colors={[colors.primary.blue]}
           />
         }
-        contentContainerStyle={articles.length === 0 ? styles.emptyContainer : undefined}
-        showsVerticalScrollIndicator={false}
+        contentContainerStyle={articles.length === 0 ? styles.emptyContainer : { paddingBottom: 100 }}
+        showsVerticalScrollIndicator={true}
       />
 
       {/* Selection Mode Actions */}

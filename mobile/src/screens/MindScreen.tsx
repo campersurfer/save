@@ -3,7 +3,7 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
+  ScrollView as RNScrollView,
   TouchableOpacity,
   TextInput,
   Dimensions,
@@ -14,6 +14,7 @@ import {
   Alert,
   Image,
 } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 // ImagePicker is imported but may not work in Expo Go - handled gracefully in handlePickImage
@@ -233,6 +234,7 @@ export default function MindScreen() {
           showsHorizontalScrollIndicator={false}
           style={styles.filterRow}
           contentContainerStyle={{ paddingHorizontal: 16 }}
+          nestedScrollEnabled={true}
         >
           <TouchableOpacity
             style={[
@@ -279,6 +281,7 @@ export default function MindScreen() {
         showsHorizontalScrollIndicator={false}
         style={styles.filterRow}
         contentContainerStyle={{ paddingHorizontal: 16 }}
+        nestedScrollEnabled={true}
       >
         {(['all', 'article', 'tweet', 'instagram', 'tiktok', 'note'] as TypeFilter[]).map(type => (
           <TouchableOpacity
@@ -343,7 +346,7 @@ export default function MindScreen() {
           </TouchableOpacity>
         </View>
 
-        <ScrollView style={styles.modalContent} keyboardShouldPersistTaps="handled">
+        <RNScrollView style={styles.modalContent} keyboardShouldPersistTaps="handled">
           {/* Title Input */}
           <TextInput
             style={[styles.noteTitleInput, { backgroundColor: colors.surface, color: colors.text.primary }]}
@@ -396,15 +399,16 @@ export default function MindScreen() {
             <Text style={[styles.noteTipText, { color: colors.text.tertiary }]}>• Notes appear in your Visual Mind</Text>
             <Text style={[styles.noteTipText, { color: colors.text.tertiary }]}>• Add images to make visual cards</Text>
           </View>
-        </ScrollView>
+        </RNScrollView>
       </KeyboardAvoidingView>
     </Modal>
   );
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
+      <RNScrollView
+        showsVerticalScrollIndicator={true}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: 100 }}
         refreshControl={
           <RefreshControl
             refreshing={isLoading}
@@ -436,7 +440,7 @@ export default function MindScreen() {
             )}
           />
         )}
-      </ScrollView>
+      </RNScrollView>
 
       {/* Note Creation Modal */}
       {renderNoteModal()}

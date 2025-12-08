@@ -199,19 +199,23 @@ export default function AddScreen() {
       <Text style={[styles.sectionTitle, { color: colors.text.primary }]}>Quick Actions</Text>
       
       <TouchableOpacity
-        style={[styles.quickActionButton, { backgroundColor: colors.surface, borderColor: colors.surfaceHigh }]}
+        style={[
+          styles.quickActionButton, 
+          styles.quickActionHighlighted,
+          { backgroundColor: colors.primary.blue, borderColor: colors.primary.blue }
+        ]}
         onPress={handlePasteFromClipboard}
       >
-        <View style={styles.quickActionIcon}>
-          <Ionicons name="clipboard-outline" size={24} color={colors.primary.blue} />
+        <View style={[styles.quickActionIcon, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+          <Ionicons name="clipboard-outline" size={24} color={colors.primary.white} />
         </View>
         <View style={styles.quickActionContent}>
-          <Text style={[styles.quickActionTitle, { color: colors.text.primary }]}>Paste from Clipboard</Text>
-          <Text style={[styles.quickActionDescription, { color: colors.text.tertiary }]}>
-            Automatically paste URL from your clipboard
+          <Text style={[styles.quickActionTitle, { color: colors.primary.white }]}>Paste from Clipboard</Text>
+          <Text style={[styles.quickActionDescription, { color: 'rgba(255,255,255,0.8)' }]}>
+            Tap to paste URL from your clipboard
           </Text>
         </View>
-        <Ionicons name="chevron-forward" size={20} color={colors.text.tertiary} />
+        <Ionicons name="chevron-forward" size={20} color={colors.primary.white} />
       </TouchableOpacity>
 
       <TouchableOpacity
@@ -313,7 +317,7 @@ export default function AddScreen() {
         style={styles.scrollContainer}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={true}
       >
         {/* Header */}
         <View style={styles.header}>
@@ -503,6 +507,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 12,
     borderWidth: 1,
+  },
+  quickActionHighlighted: {
+    shadowColor: '#0066FF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   quickActionIcon: {
     width: 40,

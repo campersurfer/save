@@ -27,8 +27,8 @@ interface Slide {
 const slides: Slide[] = [
   {
     id: '1',
-    title: 'Save Anywhere',
-    subtitle: 'Capture articles, tweets, and posts from any app. Just share to Save.',
+    title: 'Nook Anywhere',
+    subtitle: 'Capture articles, tweets, and posts from any app. Just share to Nook.',
     icon: 'bookmark',
     color: Colors.primary.blue,
     shape: 'square',
@@ -36,7 +36,7 @@ const slides: Slide[] = [
   {
     id: '2',
     title: 'Visual Mind',
-    subtitle: 'Your content, organized by mood and color. A new way to explore your reading list.',
+    subtitle: 'Your content, organized by mood and theme. A new way to explore your reading list.',
     icon: 'grid',
     color: Colors.primary.yellow,
     shape: 'triangle',
