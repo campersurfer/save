@@ -1,25 +1,44 @@
 import React, { createContext, useState, useEffect, useCallback, useContext } from 'react';
 import { Platform, Alert } from 'react-native';
-import Purchases, {
+import { useAuth } from './AuthProvider';
+
+// Try to import RevenueCat - it may not be available in Expo Go
+let Purchases: any = null;
+let LOG_LEVEL: any = null;
+try {
+  const RC = require('react-native-purchases');
+  Purchases = RC.default;
+  LOG_LEVEL = RC.LOG_LEVEL;
+} catch (e) {
+  console.log('RevenueCat not available - running in Expo Go or native module not linked');
+}
+
+// Type imports for TypeScript
+import type {
   PurchasesOffering,
   PurchasesPackage,
   CustomerInfo,
-  LOG_LEVEL,
 } from 'react-native-purchases';
-import { useAuth } from './AuthProvider';
 
 // RevenueCat API Keys - Replace with your actual keys from RevenueCat dashboard
 // Get these from: https://app.revenuecat.com/
-const REVENUECAT_API_KEY_IOS = 'appl_YOUR_REVENUECAT_IOS_API_KEY';
-const REVENUECAT_API_KEY_ANDROID = 'goog_YOUR_REVENUECAT_ANDROID_API_KEY';
+// IMPORTANT: Leave as placeholder until you set up RevenueCat
+const REVENUECAT_API_KEY_IOS = ''; // Set your key: 'appl_xxxxx'
+const REVENUECAT_API_KEY_ANDROID = ''; // Set your key: 'goog_xxxxx'
 
 // Entitlement ID - This should match what you set up in RevenueCat
 const PREMIUM_ENTITLEMENT_ID = 'premium';
+
+// Check if RevenueCat is properly configured
+const isRevenueCatConfigured = () => {
+  return Purchases && REVENUECAT_API_KEY_IOS.length > 0;
+};
 
 // Types
 export interface PaymentContextType {
   isLoading: boolean;
   isPremium: boolean;
+  isConfigured: boolean;
   offerings: PurchasesOffering | null;
   customerInfo: CustomerInfo | null;
   
@@ -33,6 +52,7 @@ export interface PaymentContextType {
 const PaymentContext = createContext<PaymentContextType>({
   isLoading: true,
   isPremium: false,
+  isConfigured: false,
   offerings: null,
   customerInfo: null,
   loadOfferings: async () => {},
@@ -65,9 +85,19 @@ export const PaymentProvider: React.FC<PaymentProviderProps> = ({ children }) =>
   }, [isAuthenticated, user?.id]);
 
   const initializeRevenueCat = async () => {
+    // Skip initialization if RevenueCat is not configured
+    if (!isRevenueCatConfigured()) {
+      console.log('RevenueCat not configured - skipping initialization');
+      console.log('To enable payments, add your RevenueCat API key to PaymentProvider.tsx');
+      setIsLoading(false);
+      return;
+    }
+
     try {
       // Set log level for debugging (remove in production)
-      Purchases.setLogLevel(LOG_LEVEL.DEBUG);
+      if (LOG_LEVEL) {
+        Purchases.setLogLevel(LOG_LEVEL.DEBUG);
+      }
 
       // Configure RevenueCat with the appropriate API key
       const apiKey = Platform.OS === 'ios' 
@@ -77,7 +107,7 @@ export const PaymentProvider: React.FC<PaymentProviderProps> = ({ children }) =>
       await Purchases.configure({ apiKey });
 
       // Listen for customer info updates
-      Purchases.addCustomerInfoUpdateListener((info) => {
+      Purchases.addCustomerInfoUpdateListener((info: CustomerInfo) => {
         setCustomerInfo(info);
         checkEntitlements(info);
       });
@@ -97,6 +127,8 @@ export const PaymentProvider: React.FC<PaymentProviderProps> = ({ children }) =>
   };
 
   const identifyUser = async (userId: string) => {
+    if (!isRevenueCatConfigured()) return;
+    
     try {
       const { customerInfo } = await Purchases.logIn(userId);
       setCustomerInfo(customerInfo);
@@ -113,6 +145,8 @@ export const PaymentProvider: React.FC<PaymentProviderProps> = ({ children }) =>
   };
 
   const loadOfferings = useCallback(async () => {
+    if (!isRevenueCatConfigured()) return;
+    
     try {
       const offerings = await Purchases.getOfferings();
       if (offerings.current) {
@@ -124,6 +158,15 @@ export const PaymentProvider: React.FC<PaymentProviderProps> = ({ children }) =>
   }, []);
 
   const purchasePackage = useCallback(async (pkg: PurchasesPackage): Promise<boolean> => {
+    if (!isRevenueCatConfigured()) {
+      Alert.alert(
+        'Payments Not Configured',
+        'In-app purchases are not yet available. This feature requires a development build with RevenueCat configured.',
+        [{ text: 'OK' }]
+      );
+      return false;
+    }
+    
     try {
       setIsLoading(true);
       const { customerInfo } = await Purchases.purchasePackage(pkg);
@@ -159,6 +202,15 @@ export const PaymentProvider: React.FC<PaymentProviderProps> = ({ children }) =>
   }, []);
 
   const restorePurchases = useCallback(async (): Promise<boolean> => {
+    if (!isRevenueCatConfigured()) {
+      Alert.alert(
+        'Payments Not Configured',
+        'In-app purchases are not yet available. This feature requires a development build with RevenueCat configured.',
+        [{ text: 'OK' }]
+      );
+      return false;
+    }
+    
     try {
       setIsLoading(true);
       const customerInfo = await Purchases.restorePurchases();
@@ -196,6 +248,8 @@ export const PaymentProvider: React.FC<PaymentProviderProps> = ({ children }) =>
   }, []);
 
   const checkPremiumStatus = useCallback(async (): Promise<boolean> => {
+    if (!isRevenueCatConfigured()) return false;
+    
     try {
       const info = await Purchases.getCustomerInfo();
       const hasPremium = typeof info.entitlements.active[PREMIUM_ENTITLEMENT_ID] !== 'undefined';
@@ -210,6 +264,7 @@ export const PaymentProvider: React.FC<PaymentProviderProps> = ({ children }) =>
   const contextValue: PaymentContextType = {
     isLoading,
     isPremium,
+    isConfigured: isRevenueCatConfigured(),
     offerings,
     customerInfo,
     loadOfferings,

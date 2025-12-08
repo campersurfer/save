@@ -57,7 +57,7 @@ const PREMIUM_FEATURES = [
 
 export default function PaywallScreen({ onClose, onSuccess }: PaywallScreenProps) {
   const { colors, isDark } = useTheme();
-  const { offerings, purchasePackage, restorePurchases, isLoading, isPremium } = usePayment();
+  const { offerings, purchasePackage, restorePurchases, isLoading, isPremium, isConfigured } = usePayment();
   
   const [selectedPackage, setSelectedPackage] = useState<PurchasesPackage | null>(null);
   const [isPurchasing, setIsPurchasing] = useState(false);
@@ -181,7 +181,19 @@ export default function PaywallScreen({ onClose, onSuccess }: PaywallScreenProps
         </View>
 
         {/* Pricing Options */}
-        {isLoading ? (
+        {!isConfigured ? (
+          <View style={styles.comingSoonContainer}>
+            <View style={[styles.comingSoonBadge, { backgroundColor: colors.primary.blue + '20' }]}>
+              <Ionicons name="time-outline" size={32} color={colors.primary.blue} />
+            </View>
+            <Text style={[styles.comingSoonTitle, { color: colors.text.primary }]}>
+              Coming Soon
+            </Text>
+            <Text style={[styles.comingSoonText, { color: colors.text.tertiary }]}>
+              Premium subscriptions will be available soon. We're working hard to bring you these amazing features!
+            </Text>
+          </View>
+        ) : isLoading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={colors.primary.blue} />
             <Text style={[styles.loadingText, { color: colors.text.tertiary }]}>
@@ -256,41 +268,54 @@ export default function PaywallScreen({ onClose, onSuccess }: PaywallScreenProps
 
       {/* Bottom Actions */}
       <View style={[styles.bottomActions, { backgroundColor: colors.background, borderTopColor: colors.border }]}>
-        <TouchableOpacity
-          style={[
-            styles.purchaseButton,
-            { backgroundColor: colors.primary.blue },
-            (!selectedPackage || isPurchasing) && styles.purchaseButtonDisabled,
-          ]}
-          onPress={handlePurchase}
-          disabled={!selectedPackage || isPurchasing}
-        >
-          {isPurchasing ? (
-            <ActivityIndicator color={colors.primary.white} />
-          ) : (
-            <Text style={[styles.purchaseButtonText, { color: colors.primary.white }]}>
-              {selectedPackage 
-                ? `Subscribe for ${formatPrice(selectedPackage)}${formatPeriod(selectedPackage)}`
-                : 'Select a Plan'
-              }
+        {isConfigured ? (
+          <>
+            <TouchableOpacity
+              style={[
+                styles.purchaseButton,
+                { backgroundColor: colors.primary.blue },
+                (!selectedPackage || isPurchasing) && styles.purchaseButtonDisabled,
+              ]}
+              onPress={handlePurchase}
+              disabled={!selectedPackage || isPurchasing}
+            >
+              {isPurchasing ? (
+                <ActivityIndicator color={colors.primary.white} />
+              ) : (
+                <Text style={[styles.purchaseButtonText, { color: colors.primary.white }]}>
+                  {selectedPackage 
+                    ? `Subscribe for ${formatPrice(selectedPackage)}${formatPeriod(selectedPackage)}`
+                    : 'Select a Plan'
+                  }
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.restoreButton}
+              onPress={handleRestore}
+              disabled={isPurchasing}
+            >
+              <Text style={[styles.restoreButtonText, { color: colors.text.tertiary }]}>
+                Restore Purchases
+              </Text>
+            </TouchableOpacity>
+
+            <Text style={[styles.termsText, { color: colors.text.tertiary }]}>
+              Cancel anytime. Subscription auto-renews.{'\n'}
+              <Text style={{ color: colors.primary.blue }}>Terms</Text> • <Text style={{ color: colors.primary.blue }}>Privacy</Text>
             </Text>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.restoreButton}
-          onPress={handleRestore}
-          disabled={isPurchasing}
-        >
-          <Text style={[styles.restoreButtonText, { color: colors.text.tertiary }]}>
-            Restore Purchases
-          </Text>
-        </TouchableOpacity>
-
-        <Text style={[styles.termsText, { color: colors.text.tertiary }]}>
-          Cancel anytime. Subscription auto-renews.{'\n'}
-          <Text style={{ color: colors.primary.blue }}>Terms</Text> • <Text style={{ color: colors.primary.blue }}>Privacy</Text>
-        </Text>
+          </>
+        ) : (
+          <TouchableOpacity
+            style={[styles.purchaseButton, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }]}
+            onPress={onClose}
+          >
+            <Text style={[styles.purchaseButtonText, { color: colors.text.primary }]}>
+              Got it, notify me when available
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -496,5 +521,28 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: 'center',
     lineHeight: 16,
+  },
+  comingSoonContainer: {
+    alignItems: 'center',
+    padding: Spacing.xl,
+    marginBottom: Spacing.lg,
+  },
+  comingSoonBadge: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  comingSoonTitle: {
+    fontSize: Typography.fontSize.h3,
+    fontWeight: '700',
+    marginBottom: Spacing.sm,
+  },
+  comingSoonText: {
+    fontSize: Typography.fontSize.body,
+    textAlign: 'center',
+    lineHeight: 22,
   },
 });
