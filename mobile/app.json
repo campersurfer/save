@@ -14,7 +14,11 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.campersurfer.save"
+      "bundleIdentifier": "com.campersurfer.save",
+      "usesAppleSignIn": true,
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "Use Face ID to unlock Nook and access your saved articles securely."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -27,7 +31,11 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": [],
+    "plugins": [
+      "expo-secure-store",
+      "expo-apple-authentication",
+      "expo-local-authentication"
+    ],
     "extra": {
       "eas": {
         "projectId": "7e6fa4e8-439f-45ac-af84-391c1a050c13"

@@ -16,6 +16,7 @@ import { Colors, Typography, Spacing, Geometry } from '../styles/BauhausDesign';
 import { AudioContext } from '../providers/AudioProvider';
 import { StorageService } from '../services/StorageService';
 import { useTheme, ThemeMode } from '../providers/ThemeProvider';
+import { useAuth } from '../providers/AuthProvider';
 
 export default function SettingsScreen() {
   // Get theme context
@@ -29,6 +30,17 @@ export default function SettingsScreen() {
     selectedVoice,
     setVoice
   } = useContext(AudioContext);
+  
+  // Get auth context
+  const {
+    user,
+    signOut,
+    biometricsAvailable,
+    biometricsEnabled,
+    enableBiometrics,
+    disableBiometrics,
+    deleteAccount,
+  } = useAuth();
   
   // Settings state
   const [autoPlay, setAutoPlay] = useState(true);
@@ -402,28 +414,123 @@ export default function SettingsScreen() {
           </>
         ))}
 
+        {/* Account Section */}
+        {renderSection('Account', (
+          <>
+            {/* User Info */}
+            <View style={[styles.settingItem, { backgroundColor: colors.surface }]}>
+              <View style={[styles.settingIcon, { backgroundColor: colors.primary.blue + '20' }]}>
+                <Ionicons name="person" size={22} color={colors.primary.blue} />
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={[styles.settingTitle, { color: colors.text.primary }]}>
+                  {user?.fullName || user?.email || 'Signed In'}
+                </Text>
+                <Text style={[styles.settingDescription, { color: colors.text.tertiary }]}>
+                  {user?.authProvider === 'apple' ? 'Signed in with Apple' : user?.email || 'Email account'}
+                </Text>
+              </View>
+            </View>
+
+            {/* Biometrics Toggle */}
+            {biometricsAvailable && renderSwitchItem(
+              'finger-print-outline',
+              'Face ID / Touch ID',
+              'Use biometrics to unlock the app',
+              biometricsEnabled,
+              async (enabled) => {
+                if (enabled) {
+                  await enableBiometrics();
+                } else {
+                  await disableBiometrics();
+                }
+              }
+            )}
+
+            {/* Sign Out */}
+            <TouchableOpacity
+              style={[styles.settingItem, { backgroundColor: colors.surface }]}
+              onPress={() => {
+                Alert.alert(
+                  'Sign Out',
+                  'Are you sure you want to sign out?',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Sign Out', style: 'destructive', onPress: signOut }
+                  ]
+                );
+              }}
+            >
+              <View style={[styles.settingIcon, { backgroundColor: colors.primary.blue + '20' }]}>
+                <Ionicons name="log-out-outline" size={22} color={colors.primary.blue} />
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={[styles.settingTitle, { color: colors.text.primary }]}>Sign Out</Text>
+                <Text style={[styles.settingDescription, { color: colors.text.tertiary }]}>
+                  Sign out of your account
+                </Text>
+              </View>
+              <View style={styles.settingRight}>
+                <Ionicons name="chevron-forward" size={20} color={colors.text.tertiary} />
+              </View>
+            </TouchableOpacity>
+          </>
+        ))}
+
         {/* Danger Zone */}
         {renderSection('Danger Zone', (
-          <TouchableOpacity
-            style={[
-              styles.dangerItem,
-              { backgroundColor: colors.surface, borderColor: Colors.semantic.error + '20' }
-            ]}
-            onPress={handleDeleteAllData}
-          >
-            <View style={[styles.settingIcon, styles.dangerIcon]}>
-              <Ionicons name="warning-outline" size={22} color={Colors.semantic.error} />
-            </View>
-            <View style={styles.settingContent}>
-              <Text style={[styles.settingTitle, styles.dangerText]}>Delete All Data</Text>
-              <Text style={[styles.settingDescription, { color: colors.text.tertiary }]}>
-                Permanently delete all articles and app data
-              </Text>
-            </View>
-            <View style={styles.settingRight}>
-              <Ionicons name="chevron-forward" size={20} color={Colors.semantic.error} />
-            </View>
-          </TouchableOpacity>
+          <>
+            <TouchableOpacity
+              style={[
+                styles.dangerItem,
+                { backgroundColor: colors.surface, borderColor: Colors.semantic.error + '20' }
+              ]}
+              onPress={handleDeleteAllData}
+            >
+              <View style={[styles.settingIcon, styles.dangerIcon]}>
+                <Ionicons name="trash-outline" size={22} color={Colors.semantic.error} />
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={[styles.settingTitle, styles.dangerText]}>Delete All Data</Text>
+                <Text style={[styles.settingDescription, { color: colors.text.tertiary }]}>
+                  Permanently delete all articles and app data
+                </Text>
+              </View>
+              <View style={styles.settingRight}>
+                <Ionicons name="chevron-forward" size={20} color={Colors.semantic.error} />
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.dangerItem,
+                { backgroundColor: colors.surface, borderColor: Colors.semantic.error + '20' }
+              ]}
+              onPress={() => {
+                Alert.alert(
+                  'Delete Account',
+                  'This will permanently delete your account and all data. This action cannot be undone.',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Delete Account', style: 'destructive', onPress: deleteAccount }
+                  ]
+                );
+              }}
+            >
+              <View style={[styles.settingIcon, styles.dangerIcon]}>
+                <Ionicons name="person-remove-outline" size={22} color={Colors.semantic.error} />
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={[styles.settingTitle, styles.dangerText]}>Delete Account</Text>
+                <Text style={[styles.settingDescription, { color: colors.text.tertiary }]}>
+                  Permanently delete your account
+                </Text>
+              </View>
+              <View style={styles.settingRight}>
+                <Ionicons name="chevron-forward" size={20} color={Colors.semantic.error} />
+              </View>
+            </TouchableOpacity>
+          </>
         ))}
 
         {/* Footer */}

@@ -19,11 +19,13 @@ import AddScreen from './src/screens/AddScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import ArticleDetailScreen from './src/screens/ArticleDetailScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
+import AuthScreen from './src/screens/AuthScreen';
 
 // Import providers
 import { AudioProvider } from './src/providers/AudioProvider';
 import { ContentProvider } from './src/providers/ContentProvider';
 import { ThemeProvider, ThemeContext, useTheme } from './src/providers/ThemeProvider';
+import { AuthProvider, useAuth } from './src/providers/AuthProvider';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -110,9 +112,10 @@ function MainTabNavigator() {
   );
 }
 
-// Inner app component that can use theme context
+// Inner app component that can use theme and auth context
 function AppContent() {
   const { colors, isDark } = useTheme();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
@@ -132,12 +135,8 @@ function AppContent() {
   };
 
   const handleOnboardingComplete = async () => {
-    try {
-      await AsyncStorage.setItem('@has_onboarded', 'true');
-      setShowOnboarding(false);
-    } catch (error) {
-      console.error('Error saving onboarding status:', error);
-    }
+    // Don't mark as complete - auth screen will do that after sign in
+    setShowOnboarding(false);
   };
 
   // Create custom navigation theme
@@ -154,7 +153,7 @@ function AppContent() {
     fonts: isDark ? DarkTheme.fonts : DefaultTheme.fonts,
   };
 
-  if (isLoading) {
+  if (isLoading || authLoading) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.primary.blue} />
@@ -162,28 +161,42 @@ function AppContent() {
     );
   }
 
+  // Determine which screen to show
+  const renderContent = () => {
+    // Show onboarding first for new users
+    if (showOnboarding) {
+      return <OnboardingScreen onComplete={handleOnboardingComplete} />;
+    }
+    
+    // Show auth screen if not authenticated
+    if (!isAuthenticated) {
+      return <AuthScreen />;
+    }
+    
+    // Show main app
+    return (
+      <Stack.Navigator
+        screenOptions={{
+          headerShown: false,
+        }}
+      >
+        <Stack.Screen name="MainTabs" component={MainTabNavigator} />
+        <Stack.Screen 
+          name="ArticleDetail" 
+          component={ArticleDetailScreen}
+          options={{
+            headerShown: false,
+            presentation: 'modal',
+          }}
+        />
+      </Stack.Navigator>
+    );
+  };
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <NavigationContainer theme={navigationTheme}>
-        {showOnboarding ? (
-          <OnboardingScreen onComplete={handleOnboardingComplete} />
-        ) : (
-          <Stack.Navigator
-            screenOptions={{
-              headerShown: false,
-            }}
-          >
-            <Stack.Screen name="MainTabs" component={MainTabNavigator} />
-            <Stack.Screen 
-              name="ArticleDetail" 
-              component={ArticleDetailScreen}
-              options={{
-                headerShown: false,
-                presentation: 'modal',
-              }}
-            />
-          </Stack.Navigator>
-        )}
+        {renderContent()}
         <StatusBar style={isDark ? 'light' : 'dark'} backgroundColor={colors.background} />
       </NavigationContainer>
     </GestureHandlerRootView>
@@ -194,11 +207,13 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <ContentProvider>
-          <AudioProvider>
-            <AppContent />
-          </AudioProvider>
-        </ContentProvider>
+        <AuthProvider>
+          <ContentProvider>
+            <AudioProvider>
+              <AppContent />
+            </AudioProvider>
+          </ContentProvider>
+        </AuthProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );
